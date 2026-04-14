@@ -1232,17 +1232,16 @@ function advanceScene() {
   if (currentSceneIdx < SCENES.length - 1) {
     jumpToScene(currentSceneIdx + 1);
   } else {
-    // Big Crunch complete → white flash → loop back to Big Bang
+    // Big Crunch complete → fade to black → loop back to Big Bang
     const flashEl = document.getElementById('flash-overlay');
-    flashEl.style.background = '#fff';
-    flashEl.style.transition = 'opacity 0.3s';
+    flashEl.style.background = '#000';
+    flashEl.style.transition = 'opacity 1.0s';
     flashEl.style.opacity = '1';
     setTimeout(() => {
-      flashEl.style.transition = 'opacity 1.5s';
-      flashEl.style.opacity = '0';
-      currentSceneIdx = -1; // so jumpToScene(0) doesn't skip
+      currentSceneIdx = -1;
       jumpToScene(0);
-    }, 800);
+      // jumpToScene handles its own fade-out
+    }, 1500);
   }
 }
 
@@ -1271,20 +1270,62 @@ function toggleTimeline() {
 function updateSceneButtons() {}
 
 // ─── Scene-specific physics ────────────────────────────────────
-function bigBangPhysics(dt) {
-  // Continuous expansion: push particles outward, no gravity
-  for (let i = 0; i < N; i++) {
-    const i3 = i * 3;
-    pos[i3]   += vel[i3]   * dt * 1.5;
-    pos[i3+1] += vel[i3+1] * dt * 1.5;
-    pos[i3+2] += vel[i3+2] * dt * 1.5;
+// Big Bang flash state
+let bigBangFlashed = false;
 
-    // Cooling color over time
-    const t = Math.min(1, sceneTimer / SCENES[0].duration);
-    col[i3]   = 1.0 - t * 0.6;
-    col[i3+1] = 0.9 - t * 0.5;
-    col[i3+2] = 0.7 - t * 0.3;
-    sizes[i]  = (3.0 - t * 1.5) + Math.random() * 0.3;
+function bigBangPhysics(dt) {
+  const dur = SCENES[0].duration;
+  const t = Math.min(1, sceneTimer / dur);
+
+  // Phase 1 (0–15%): darkness, tiny singularity glow
+  // Phase 2 (15%): WHITE FLASH — inflation begins
+  // Phase 3 (15–40%): space (shell) expands rapidly, particles still near origin
+  // Phase 4 (40–100%): matter begins to spread, cooling
+
+  const flashEl = document.getElementById('flash-overlay');
+
+  if (t < 0.15) {
+    // Darkness with faint singularity glow
+    const glow = t / 0.15;
+    for (let i = 0; i < N; i++) {
+      const i3 = i * 3;
+      col[i3] = glow * 0.3; col[i3+1] = glow * 0.2; col[i3+2] = glow * 0.1;
+      sizes[i] = glow * 1.5;
+      // Particles stay at origin
+    }
+    bigBangFlashed = false;
+  } else {
+    // White flash at inflation moment
+    if (!bigBangFlashed) {
+      bigBangFlashed = true;
+      flashEl.style.background = '#fff';
+      flashEl.style.transition = 'opacity 0.1s';
+      flashEl.style.opacity = '1';
+      setTimeout(() => {
+        flashEl.style.transition = 'opacity 2.0s';
+        flashEl.style.opacity = '0';
+      }, 150);
+    }
+
+    // Matter expansion with delay — starts slow at 15%, full speed by 40%
+    const matterPhase = Math.max(0, (t - 0.15) / 0.85);
+    const expansionSpeed = matterPhase < 0.3
+      ? matterPhase / 0.3 * 0.5   // slow start (space inflated but matter lags)
+      : 0.5 + (matterPhase - 0.3) * 0.7; // matter catches up
+
+    for (let i = 0; i < N; i++) {
+      const i3 = i * 3;
+      pos[i3]   += vel[i3]   * dt * expansionSpeed * 2.0;
+      pos[i3+1] += vel[i3+1] * dt * expansionSpeed * 2.0;
+      pos[i3+2] += vel[i3+2] * dt * expansionSpeed * 2.0;
+
+      // Cooling: white → orange → red-dim
+      const cool = matterPhase;
+      col[i3]   = 1.0 - cool * 0.6;
+      col[i3+1] = 0.95 - cool * 0.55;
+      col[i3+2] = 0.8 - cool * 0.4;
+      sizes[i]  = 3.0 - cool * 1.5 + Math.random() * 0.3;
+    }
   }
   markDirty();
 }
@@ -1309,9 +1350,7 @@ function darkAgesPhysics(dt) {
 function bigCrunchPhysics(dt) {
   // Lerp everything toward origin — no velocity, no overshoot
   const t = sceneTimer / SCENES[5].duration;
-  // Shrink factor: starts slow, accelerates (easeInQuad)
   const shrink = t * t;
-  // Each frame, move a fraction closer to origin (stronger as t grows)
   const lerpRate = 0.01 + shrink * 0.08;
 
   for (let i = 0; i < N; i++) {
@@ -1320,11 +1359,12 @@ function bigCrunchPhysics(dt) {
     pos[i3+1] *= (1 - lerpRate);
     pos[i3+2] *= (1 - lerpRate);
 
-    // Heat up to white
-    col[i3]   = 0.35 + t * 0.65;
-    col[i3+1] = 0.55 + t * 0.4;
-    col[i3+2] = 0.9 - t * 0.2;
-    sizes[i]  = 1.0 + t * 3.0;
+    // Fade to darkness as everything collapses
+    const fade = 1.0 - t * t; // dimming accelerates
+    col[i3]   = (0.35 + Math.random() * 0.2) * fade;
+    col[i3+1] = (0.3  + Math.random() * 0.15) * fade;
+    col[i3+2] = (0.5  + Math.random() * 0.1) * fade;
+    sizes[i]  = (1.0 + Math.random() * 2.0) * fade;
   }
   for (const a of attractors) {
     a.x *= (1 - lerpRate); a.y *= (1 - lerpRate); a.z *= (1 - lerpRate);
@@ -1610,8 +1650,10 @@ function animate(ts) {
   if (timelineMode) {
     let targetScale;
     if (currentSceneIdx === 0) {
-      // Big Bang: expand from 0
-      targetScale = sceneTimer / SCENES[0].duration;
+      // Inflation: space expands BEFORE matter
+      // Shell reaches full size by 40% of scene, matter lags behind
+      const t = sceneTimer / SCENES[0].duration;
+      targetScale = t < 0.15 ? 0 : Math.min(1, ((t - 0.15) / 0.25));
     } else if (currentSceneIdx === 5) {
       // Big Crunch: shrink to 0
       const t = sceneTimer / SCENES[5].duration;
