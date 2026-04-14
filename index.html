@@ -1294,16 +1294,67 @@ function spawnAttractorAt(mx, my) {
   flash('Attractor Placed');
 }
 
+// ─── Slow Showcase Cycle (normal mode) ─────────────────────────
+// Smoothly cycle through cosmic eras by interpolating physics params
+const SHOWCASE_ERAS = [
+  { name: 'Inflation',           time: '10⁻³² sec',     gravity: 0.15, dark: 1.2,  dur: 30 },
+  { name: 'Dark Ages',           time: '380,000 yr',     gravity: 0.3,  dark: 0.05, dur: 25 },
+  { name: 'Structure Formation', time: '1 Billion yr',   gravity: 1.4,  dark: 0.15, dur: 35 },
+  { name: 'Galaxy Epoch',        time: '9 Billion yr',   gravity: 0.8,  dark: 0.3,  dur: 30 },
+  { name: 'Present Day',         time: '13.8 Billion yr',gravity: 0.8,  dark: 0.3,  dur: 30 },
+  { name: 'Heat Death',          time: '10¹⁰⁰ yr',      gravity: 0.2,  dark: 1.0,  dur: 25 },
+];
+let showcaseEraIdx = 0;
+let showcaseTimer = 0;
+const SHOWCASE_TRANSITION = 5; // seconds to blend between eras
+
+function updateShowcase(dtSec) {
+  if (timelineMode) return;
+  showcaseTimer += dtSec;
+
+  const era = SHOWCASE_ERAS[showcaseEraIdx];
+  const nextIdx = (showcaseEraIdx + 1) % SHOWCASE_ERAS.length;
+  const next = SHOWCASE_ERAS[nextIdx];
+
+  if (showcaseTimer >= era.dur) {
+    showcaseTimer = 0;
+    showcaseEraIdx = nextIdx;
+    // Update epoch display briefly
+    const epochEl = document.getElementById('epoch-display');
+    document.getElementById('epoch-name').textContent = next.name;
+    document.getElementById('epoch-time').textContent = next.time;
+    epochEl.style.opacity = '1';
+    setTimeout(() => { if (!timelineMode) epochEl.style.opacity = '0'; }, 3000);
+  }
+
+  // Smooth blend during last SHOWCASE_TRANSITION seconds of each era
+  const timeLeft = era.dur - showcaseTimer;
+  if (timeLeft < SHOWCASE_TRANSITION) {
+    const t = 1 - (timeLeft / SHOWCASE_TRANSITION); // 0→1
+    const smooth = t * t * (3 - 2 * t); // smoothstep
+    GRAVITY = era.gravity + (next.gravity - era.gravity) * smooth;
+    DARK_ENERGY = era.dark + (next.dark - era.dark) * smooth;
+  } else {
+    GRAVITY = era.gravity;
+    DARK_ENERGY = era.dark;
+  }
+
+  // Update bar progress
+  const totalDur = SHOWCASE_ERAS.reduce((s, e) => s + e.dur, 0);
+  let elapsed = showcaseTimer;
+  for (let i = 0; i < showcaseEraIdx; i++) elapsed += SHOWCASE_ERAS[i].dur;
+  document.getElementById('time-progress').style.width = ((elapsed / totalDur) * 100) + '%';
+}
+
 // ─── Stats Counter ─────────────────────────────────────────────
 function updateStats() {
   document.getElementById('s-particles').textContent = N.toLocaleString();
   document.getElementById('s-filaments').textContent = filamentCount.toLocaleString();
   document.getElementById('s-time').textContent = timelineMode
     ? SCENES[currentSceneIdx].name
-    : 'T+' + Math.floor(simTime);
+    : SHOWCASE_ERAS[showcaseEraIdx].name;
   document.getElementById('s-voids').textContent = attractors.length;
   if (timelineMode) updateTimelineBar();
-  else document.getElementById('time-progress').style.width = ((simTime % 100)) + '%';
 }
 
 // ─── Render Loop ───────────────────────────────────────────────
@@ -1323,6 +1374,9 @@ function animate(ts) {
       advanceScene();
     }
   }
+
+  // Showcase cycle (normal mode)
+  updateShowcase(dt / 60);
 
   physicsStep(dt * 0.06);
   enforceShellBoundary();
