@@ -1388,22 +1388,24 @@ updateAttractorMarkers();
 updateStats();
 animate(0);
 
-let lastW = window.innerWidth, lastH = window.innerHeight;
-let resizeTimer = null;
+let lastW = window.innerWidth;
 function handleResize() {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => {
-    const w = window.innerWidth, h = window.innerHeight;
-    // Only resize if dimensions actually changed significantly
-    if (Math.abs(w - lastW) < 5 && Math.abs(h - lastH) < 5) return;
-    lastW = w; lastH = h;
-    renderer.setSize(w, h);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-  }, 150);
+  const w = window.innerWidth, h = window.innerHeight;
+  // Only resize if width changed (ignore mobile address bar height changes)
+  if (Math.abs(w - lastW) < 5) return;
+  lastW = w;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', handleResize);
-window.addEventListener('orientationchange', () => setTimeout(handleResize, 300));
+window.addEventListener('orientationchange', () => {
+  // Orientation change always changes width, so force resize
+  setTimeout(() => {
+    lastW = 0;
+    handleResize();
+  }, 300);
+});
 </script>
 </body>
 </html>
