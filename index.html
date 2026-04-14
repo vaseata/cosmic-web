@@ -979,6 +979,7 @@ function randSphere(r) {
 
 function initScene_BigBang() {
   // Singularity → explosion. All matter at origin, radial velocity
+  cosmicShell.scale.set(0, 0, 0); // Shell starts at zero — inflation hasn't happened yet
   attractors = [];
   for (let i = 0; i < NUM_ATTRACTORS; i++) {
     attractors.push({ x: 0, y: 0, z: 0, mass: 100 + Math.random() * 100, vx: 0, vy: 0, vz: 0 });
