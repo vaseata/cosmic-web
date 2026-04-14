@@ -994,19 +994,36 @@ function randSphere(r) {
 }
 
 function initScene_BigBang() {
-  // Singularity → explosion. All matter at origin, radial velocity
-  cosmicShell.scale.set(0, 0, 0); // Shell starts at zero — inflation hasn't happened yet
+  // Space itself appears from nothing, already filled with hot plasma uniformly
+  // No "center" — matter is everywhere within the expanding space
+  cosmicShell.scale.set(0, 0, 0); // Space hasn't appeared yet
+
+  // Pre-compute each particle's "normalized position" within the universe
+  // These stay fixed — particles expand WITH space, not through it
   attractors = [];
   for (let i = 0; i < NUM_ATTRACTORS; i++) {
-    attractors.push({ x: 0, y: 0, z: 0, mass: 100 + Math.random() * 100, vx: 0, vy: 0, vz: 0 });
+    const [x,y,z] = randSphere(0.5 + Math.random() * 0.5);
+    attractors.push({
+      x: 0, y: 0, z: 0, mass: 80 + Math.random() * 100,
+      vx: 0, vy: 0, vz: 0,
+      // Store comoving coordinates (normalized position within universe)
+      cx: x, cy: y, cz: z
+    });
   }
+
+  // Store comoving coords for each particle
+  bigBangComoving = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
+    // Uniform distribution within unit sphere (comoving space)
+    const [x,y,z] = randSphere(Math.cbrt(Math.random())); // uniform volume
+    bigBangComoving[i3]   = x;
+    bigBangComoving[i3+1] = y;
+    bigBangComoving[i3+2] = z;
     pos[i3] = pos[i3+1] = pos[i3+2] = 0;
-    const [vx,vy,vz] = randSphere(3 + Math.random() * 8);
-    vel[i3] = vx; vel[i3+1] = vy; vel[i3+2] = vz;
-    col[i3] = 1.0; col[i3+1] = 0.95; col[i3+2] = 0.8;
-    sizes[i] = 2.5 + Math.random() * 3.0;
+    vel[i3] = vel[i3+1] = vel[i3+2] = 0;
+    col[i3] = 0; col[i3+1] = 0; col[i3+2] = 0;
+    sizes[i] = 0;
     masses[i] = 1;
   }
   GRAVITY = 0.1; DARK_ENERGY = 0.0; FILAMENT_THRESH = 30;
@@ -1316,63 +1333,73 @@ function toggleTimeline() {
 function updateSceneButtons() {}
 
 // ─── Scene-specific physics ────────────────────────────────────
-// Big Bang flash state
-let bigBangFlashed = false;
+// Big Bang comoving coordinates (particles' positions relative to space)
+let bigBangComoving = null;
 
 function bigBangPhysics(dt) {
   const dur = SCENES[0].duration;
   const t = Math.min(1, sceneTimer / dur);
 
-  // Phase 1 (0–15%): darkness, tiny singularity glow
-  // Phase 2 (15%): WHITE FLASH — inflation begins
-  // Phase 3 (15–40%): space (shell) expands rapidly, particles still near origin
-  // Phase 4 (40–100%): matter begins to spread, cooling
+  // Phase 1 (0–10%): darkness, quantum fluctuation — tiny point of space appears
+  // Phase 2 (10–30%): inflation — space expands exponentially, filled with hot plasma
+  // Phase 3 (30–100%): expansion slows, plasma cools (white → orange → dark red)
+  // No "explosion from center" — space itself stretches, carrying matter with it
 
-  const flashEl = document.getElementById('flash-overlay');
-
-  if (t < 0.15) {
-    // Darkness with faint singularity glow
-    const glow = t / 0.15;
-    for (let i = 0; i < N; i++) {
-      const i3 = i * 3;
-      col[i3] = glow * 0.3; col[i3+1] = glow * 0.2; col[i3+2] = glow * 0.1;
-      sizes[i] = glow * 1.5;
-      // Particles stay at origin
-    }
-    bigBangFlashed = false;
+  // Scale factor: how large the universe is (0 = nothing, 1 = full size)
+  let scaleFactor;
+  if (t < 0.10) {
+    // Quantum fluctuation: tiny bubble of space
+    scaleFactor = (t / 0.10) * 0.02;
+  } else if (t < 0.30) {
+    // Inflation: exponential expansion
+    const inf = (t - 0.10) / 0.20;
+    scaleFactor = 0.02 + 0.98 * (1.0 - Math.exp(-inf * 6));
   } else {
-    // White flash at inflation moment
-    if (!bigBangFlashed) {
-      bigBangFlashed = true;
-      flashEl.style.background = '#fff';
-      flashEl.style.transition = 'opacity 0.1s';
-      flashEl.style.opacity = '1';
-      setTimeout(() => {
-        flashEl.style.transition = 'opacity 2.0s';
-        flashEl.style.opacity = '0';
-      }, 150);
+    // Post-inflation: gentle continued expansion
+    const post = (t - 0.30) / 0.70;
+    scaleFactor = 1.0 + post * 0.05;
+  }
+
+  // Scale all particles' positions = comoving × scaleFactor × universe_radius
+  const universeRadius = SHELL_RADIUS * 0.9;
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    pos[i3]     = bigBangComoving[i3]     * scaleFactor * universeRadius;
+    pos[i3 + 1] = bigBangComoving[i3 + 1] * scaleFactor * universeRadius;
+    pos[i3 + 2] = bigBangComoving[i3 + 2] * scaleFactor * universeRadius;
+
+    // Temperature/color: hot plasma cooling over time
+    // Early: white-hot → mid: orange → late: dim red (approaching Dark Ages)
+    let temp;
+    if (t < 0.10) {
+      temp = 0; // invisible (space hasn't formed)
+    } else if (t < 0.30) {
+      temp = 1.0; // white-hot plasma during inflation
+    } else {
+      temp = 1.0 - ((t - 0.30) / 0.70) * 0.7; // cooling
     }
 
-    // Matter expansion with delay — starts slow at 15%, full speed by 40%
-    const matterPhase = Math.max(0, (t - 0.15) / 0.85);
-    const expansionSpeed = matterPhase < 0.3
-      ? matterPhase / 0.3 * 0.5   // slow start (space inflated but matter lags)
-      : 0.5 + (matterPhase - 0.3) * 0.7; // matter catches up
-
-    for (let i = 0; i < N; i++) {
-      const i3 = i * 3;
-      pos[i3]   += vel[i3]   * dt * expansionSpeed * 2.0;
-      pos[i3+1] += vel[i3+1] * dt * expansionSpeed * 2.0;
-      pos[i3+2] += vel[i3+2] * dt * expansionSpeed * 2.0;
-
-      // Cooling: white → orange → red-dim
-      const cool = matterPhase;
-      col[i3]   = 1.0 - cool * 0.6;
-      col[i3+1] = 0.95 - cool * 0.55;
-      col[i3+2] = 0.8 - cool * 0.4;
-      sizes[i]  = 3.0 - cool * 1.5 + Math.random() * 0.3;
+    if (t < 0.10) {
+      col[i3] = 0; col[i3+1] = 0; col[i3+2] = 0;
+      sizes[i] = 0;
+    } else {
+      col[i3]     = temp * 1.0 + (1-temp) * 0.3;
+      col[i3 + 1] = temp * 0.85 + (1-temp) * 0.15;
+      col[i3 + 2] = temp * 0.6 + (1-temp) * 0.1;
+      sizes[i]    = 1.5 + temp * 2.0;
     }
   }
+
+  // Attractors also scale with space
+  for (let i = 0; i < attractors.length; i++) {
+    const a = attractors[i];
+    if (a.cx !== undefined) {
+      a.x = a.cx * scaleFactor * universeRadius;
+      a.y = a.cy * scaleFactor * universeRadius;
+      a.z = a.cz * scaleFactor * universeRadius;
+    }
+  }
+
   markDirty();
 }
 
@@ -1698,13 +1725,16 @@ function animate(ts) {
     let targetScale;
     if (currentSceneIdx === 0) {
       // Inflation: space expands BEFORE matter
-      // Inflation: exponential expansion of space-time
+      // Shell matches bigBangPhysics scale factor exactly
       const t = sceneTimer / SCENES[0].duration;
-      if (t < 0.15) { targetScale = 0; }
-      else {
-        // Exponential burst: reaches ~90% by 25%, then settles
-        const inf = (t - 0.15) / 0.85;
-        targetScale = 1.0 - Math.exp(-inf * 8);
+      if (t < 0.10) {
+        targetScale = (t / 0.10) * 0.02;
+      } else if (t < 0.30) {
+        const inf = (t - 0.10) / 0.20;
+        targetScale = 0.02 + 0.98 * (1.0 - Math.exp(-inf * 6));
+      } else {
+        const post = (t - 0.30) / 0.70;
+        targetScale = 1.0 + post * 0.05;
       }
     } else if (currentSceneIdx === 5) {
       // Big Crunch: shrink to 0
@@ -1713,7 +1743,9 @@ function animate(ts) {
     } else {
       targetScale = 1.0;
     }
-    const s = cosmicShell.scale.x + (targetScale - cosmicShell.scale.x) * 0.05;
+    // Faster lerp during Big Bang inflation, slower otherwise
+    const shellLerp = (currentSceneIdx === 0) ? 0.15 : 0.05;
+    const s = cosmicShell.scale.x + (targetScale - cosmicShell.scale.x) * shellLerp;
     cosmicShell.scale.set(s, s, s);
   } else {
     const s = cosmicShell.scale.x + (1 - cosmicShell.scale.x) * 0.05;
