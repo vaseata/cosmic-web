@@ -1185,20 +1185,29 @@ function initScene_Now() {
   markDirty();
 }
 
+// Big Crunch comoving coordinates
+let bigCrunchComoving = null;
+
 function initScene_BigCrunch() {
-  // Current structure collapsing inward — everything pulled to origin
-  GRAVITY = 2.5; DARK_ENERGY = 0.0; FILAMENT_THRESH = 80;
+  // Capture current positions as comoving coordinates for contraction
+  // Space itself will shrink, carrying matter with it (reverse of Big Bang)
+  const universeRadius = SHELL_RADIUS * 0.9;
+  bigCrunchComoving = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
-    const len = Math.sqrt(pos[i3]*pos[i3]+pos[i3+1]*pos[i3+1]+pos[i3+2]*pos[i3+2]) || 1;
-    vel[i3]   = -(pos[i3]  /len) * 2;
-    vel[i3+1] = -(pos[i3+1]/len) * 2;
-    vel[i3+2] = -(pos[i3+2]/len) * 2;
+    bigCrunchComoving[i3]   = pos[i3]   / universeRadius;
+    bigCrunchComoving[i3+1] = pos[i3+1] / universeRadius;
+    bigCrunchComoving[i3+2] = pos[i3+2] / universeRadius;
+    vel[i3] = vel[i3+1] = vel[i3+2] = 0;
   }
+  // Capture attractor comoving coords
   for (const a of attractors) {
-    const len = Math.sqrt(a.x*a.x+a.y*a.y+a.z*a.z) || 1;
-    a.vx = -(a.x/len)*3; a.vy = -(a.y/len)*3; a.vz = -(a.z/len)*3;
+    a.cx = a.x / universeRadius;
+    a.cy = a.y / universeRadius;
+    a.cz = a.z / universeRadius;
+    a.vx = a.vy = a.vz = 0;
   }
+  GRAVITY = 0; DARK_ENERGY = 0; FILAMENT_THRESH = 80;
   markDirty();
 }
 
@@ -1421,27 +1430,59 @@ function darkAgesPhysics(dt) {
 }
 
 function bigCrunchPhysics(dt) {
-  // Lerp everything toward origin — no velocity, no overshoot
-  const t = sceneTimer / SCENES[5].duration;
-  const shrink = t * t;
-  const lerpRate = 0.01 + shrink * 0.08;
+  // Reverse of Big Bang: space contracts, matter rides with it
+  const dur = SCENES[5].duration;
+  const t = Math.min(1, sceneTimer / dur);
 
+  // Scale factor: 1 → 0 (reverse of Big Bang timeline)
+  // Slow start → accelerating contraction → final singularity
+  let scaleFactor;
+  if (t < 0.70) {
+    // Slow contraction, accelerating
+    const s = t / 0.70;
+    scaleFactor = 1.0 - s * s * 0.7; // 1.0 → 0.3
+  } else if (t < 0.90) {
+    // Rapid collapse (reverse inflation)
+    const s = (t - 0.70) / 0.20;
+    scaleFactor = 0.3 * Math.exp(-s * 6); // 0.3 → ~0
+  } else {
+    // Singularity
+    scaleFactor = 0.001;
+  }
+
+  const universeRadius = SHELL_RADIUS * 0.9;
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
-    pos[i3]   *= (1 - lerpRate);
-    pos[i3+1] *= (1 - lerpRate);
-    pos[i3+2] *= (1 - lerpRate);
+    pos[i3]     = bigCrunchComoving[i3]     * scaleFactor * universeRadius;
+    pos[i3 + 1] = bigCrunchComoving[i3 + 1] * scaleFactor * universeRadius;
+    pos[i3 + 2] = bigCrunchComoving[i3 + 2] * scaleFactor * universeRadius;
 
-    // Fade to darkness as everything collapses
-    const fade = 1.0 - t * t; // dimming accelerates
-    col[i3]   = (0.35 + Math.random() * 0.2) * fade;
-    col[i3+1] = (0.3  + Math.random() * 0.15) * fade;
-    col[i3+2] = (0.5  + Math.random() * 0.1) * fade;
-    sizes[i]  = (1.0 + Math.random() * 2.0) * fade;
+    // Color: cool blue → heating up → white-hot → darkness
+    let temp;
+    if (t < 0.50) {
+      temp = t / 0.50; // gradually heating as space compresses
+    } else if (t < 0.90) {
+      temp = 1.0; // white-hot compressed plasma
+    } else {
+      temp = 1.0 - ((t - 0.90) / 0.10); // fade to black at singularity
+    }
+
+    const fade = t > 0.90 ? (1.0 - (t - 0.90) / 0.10) : 1.0;
+    col[i3]     = (0.35 + temp * 0.65) * fade;
+    col[i3 + 1] = (0.3  + temp * 0.55) * fade;
+    col[i3 + 2] = (0.6  - temp * 0.3)  * fade;
+    sizes[i]    = (1.0 + temp * 2.5) * fade;
   }
+
+  // Attractors also contract with space
   for (const a of attractors) {
-    a.x *= (1 - lerpRate); a.y *= (1 - lerpRate); a.z *= (1 - lerpRate);
+    if (a.cx !== undefined) {
+      a.x = a.cx * scaleFactor * universeRadius;
+      a.y = a.cy * scaleFactor * universeRadius;
+      a.z = a.cz * scaleFactor * universeRadius;
+    }
   }
+
   markDirty();
 }
 
@@ -1737,9 +1778,17 @@ function animate(ts) {
         targetScale = 1.0 + post * 0.05;
       }
     } else if (currentSceneIdx === 5) {
-      // Big Crunch: shrink to 0
+      // Big Crunch: reverse of Big Bang scale factor
       const t = sceneTimer / SCENES[5].duration;
-      targetScale = 1.0 - t * t;
+      if (t < 0.70) {
+        const s = t / 0.70;
+        targetScale = 1.0 - s * s * 0.7;
+      } else if (t < 0.90) {
+        const s = (t - 0.70) / 0.20;
+        targetScale = 0.3 * Math.exp(-s * 6);
+      } else {
+        targetScale = 0.001;
+      }
     } else {
       targetScale = 1.0;
     }
