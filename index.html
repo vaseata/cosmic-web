@@ -820,20 +820,26 @@ const H_W = 280, H_H = 70;
 hCanvas.width = H_W; hCanvas.height = H_H;
 hCanvas.style.width = H_W + 'px'; hCanvas.style.height = H_H + 'px';
 
-// Shape: trumpet from Big Bang → Now, then narrows for Big Crunch
-// Each scene maps to a horizontal segment
-const SCENE_X = []; // x positions for each scene boundary
+// Shape: trumpet with inflation spike at Big Bang
+const SCENE_X = [];
 const NUM_S = SCENES.length;
 for (let i = 0; i <= NUM_S; i++) SCENE_X.push((i / NUM_S) * H_W);
 
-// Radius at each boundary (how wide the "universe" is at that point)
-const SCENE_R = [2, 18, 30, 40, 42, 44, 4]; // Big Bang→...→Big Crunch
+// Radius at each boundary
+const SCENE_R = [1, 34, 36, 40, 42, 44, 3]; // Big Bang inflates sharply to 34
 
 function getRadius(x) {
-  // Interpolate radius along x
   for (let i = 0; i < NUM_S; i++) {
     if (x >= SCENE_X[i] && x <= SCENE_X[i + 1]) {
       const t = (x - SCENE_X[i]) / (SCENE_X[i + 1] - SCENE_X[i]);
+      if (i === 0) {
+        // Big Bang: exponential inflation curve
+        return SCENE_R[0] + (SCENE_R[1] - SCENE_R[0]) * (1 - Math.exp(-t * 5));
+      }
+      if (i === NUM_S - 1) {
+        // Big Crunch: exponential collapse
+        return SCENE_R[i] + (SCENE_R[i+1] - SCENE_R[i]) * (1 - Math.exp(-t * 4));
+      }
       return SCENE_R[i] + (SCENE_R[i + 1] - SCENE_R[i]) * t;
     }
   }
@@ -1651,9 +1657,14 @@ function animate(ts) {
     let targetScale;
     if (currentSceneIdx === 0) {
       // Inflation: space expands BEFORE matter
-      // Shell reaches full size by 40% of scene, matter lags behind
+      // Inflation: exponential expansion of space-time
       const t = sceneTimer / SCENES[0].duration;
-      targetScale = t < 0.15 ? 0 : Math.min(1, ((t - 0.15) / 0.25));
+      if (t < 0.15) { targetScale = 0; }
+      else {
+        // Exponential burst: reaches ~90% by 25%, then settles
+        const inf = (t - 0.15) / 0.85;
+        targetScale = 1.0 - Math.exp(-inf * 8);
+      }
     } else if (currentSceneIdx === 5) {
       // Big Crunch: shrink to 0
       const t = sceneTimer / SCENES[5].duration;
