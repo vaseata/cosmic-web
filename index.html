@@ -57,12 +57,24 @@
     letter-spacing: 0.05em;
   }
 
-  #controls {
+  #controls-toggle {
     position: absolute;
     bottom: 36px; left: 36px;
+    pointer-events: all;
+  }
+  #controls-toggle .btn { margin-bottom: 8px; }
+  #controls {
     display: grid;
     gap: 16px;
     pointer-events: all;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.3s, opacity 0.3s;
+  }
+  #controls.open {
+    max-height: 300px;
+    opacity: 1;
   }
   .ctrl-group { display: flex; flex-direction: column; gap: 6px; }
   .ctrl-label {
@@ -95,7 +107,7 @@
 
   #buttons {
     position: absolute;
-    bottom: 120px; right: 36px;
+    bottom: 156px; right: 36px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -268,33 +280,36 @@
     <div class="epoch-time" id="epoch-time"></div>
   </div>
 
-  <div id="controls">
-    <div class="ctrl-group">
-      <div class="ctrl-label">Gravity</div>
-      <div class="ctrl-row">
-        <input type="range" id="r-gravity" min="0.1" max="3.0" step="0.05" value="0.8">
-        <span class="ctrl-val" id="v-gravity">0.8</span>
+  <div id="controls-toggle">
+    <button class="btn" onclick="document.getElementById('controls').classList.toggle('open'); this.classList.toggle('active')">Settings</button>
+    <div id="controls">
+      <div class="ctrl-group">
+        <div class="ctrl-label">Gravity</div>
+        <div class="ctrl-row">
+          <input type="range" id="r-gravity" min="0.1" max="3.0" step="0.05" value="0.8">
+          <span class="ctrl-val" id="v-gravity">0.8</span>
+        </div>
       </div>
-    </div>
-    <div class="ctrl-group">
-      <div class="ctrl-label">Dark Energy</div>
-      <div class="ctrl-row">
-        <input type="range" id="r-dark" min="0" max="1.5" step="0.05" value="0.3">
-        <span class="ctrl-val" id="v-dark">0.3</span>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Dark Energy</div>
+        <div class="ctrl-row">
+          <input type="range" id="r-dark" min="0" max="1.5" step="0.05" value="0.3">
+          <span class="ctrl-val" id="v-dark">0.3</span>
+        </div>
       </div>
-    </div>
-    <div class="ctrl-group">
-      <div class="ctrl-label">Filament Threshold</div>
-      <div class="ctrl-row">
-        <input type="range" id="r-thresh" min="20" max="120" step="5" value="60">
-        <span class="ctrl-val" id="v-thresh">60</span>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Filament Threshold</div>
+        <div class="ctrl-row">
+          <input type="range" id="r-thresh" min="20" max="120" step="5" value="60">
+          <span class="ctrl-val" id="v-thresh">60</span>
+        </div>
       </div>
-    </div>
-    <div class="ctrl-group">
-      <div class="ctrl-label">Simulation Speed</div>
-      <div class="ctrl-row">
-        <input type="range" id="r-speed" min="0.1" max="3.0" step="0.1" value="1.0">
-        <span class="ctrl-val" id="v-speed">1.0×</span>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Simulation Speed</div>
+        <div class="ctrl-row">
+          <input type="range" id="r-speed" min="0.1" max="3.0" step="0.1" value="1.0">
+          <span class="ctrl-val" id="v-speed">1.0×</span>
+        </div>
       </div>
     </div>
   </div>
@@ -816,7 +831,7 @@ let transitioning = false; // fade transition in progress
 // ─── Cosmic History Diagram ───────────────────────────────────
 const hCanvas = document.getElementById('history-canvas');
 const hCtx = hCanvas.getContext('2d');
-const H_W = 340, H_H = 90;
+const H_W = 480, H_H = 120;
 hCanvas.width = H_W; hCanvas.height = H_H;
 hCanvas.style.width = H_W + 'px'; hCanvas.style.height = H_H + 'px';
 
@@ -948,7 +963,7 @@ function drawHistoryDiagram() {
   }
 
   // Era labels
-  hCtx.font = '9px Courier New';
+  hCtx.font = '11px Courier New';
   hCtx.textAlign = 'center';
   for (let i = 0; i < NUM_S; i++) {
     const cx2 = (SCENE_X[i] + SCENE_X[i + 1]) / 2;
