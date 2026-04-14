@@ -800,12 +800,12 @@ function toggleLabels() {
 
 // ─── Timeline: Scene-Based System ─────────────────────────────
 const SCENES = [
-  { name: 'Big Bang',            time: '0 yr',            duration: 8,  camera: 200 },
-  { name: 'Dark Ages',           time: '380,000 yr',      duration: 7,  camera: 400 },
-  { name: 'Structure Formation', time: '1 Billion yr',    duration: 10, camera: 600 },
-  { name: 'Galaxy Epoch',        time: '9 Billion yr',    duration: 8,  camera: 600 },
-  { name: 'Now',                 time: '13.8 Billion yr', duration: 8,  camera: 600 },
-  { name: 'Big Crunch',          time: '∞',               duration: 8,  camera: 200 },
+  { name: 'Big Bang',            yearStart: 0,               yearEnd: 380000,            duration: 8,  camera: 200 },
+  { name: 'Dark Ages',           yearStart: 380000,           yearEnd: 1000000000,        duration: 7,  camera: 400 },
+  { name: 'Structure Formation', yearStart: 1000000000,       yearEnd: 9000000000,        duration: 10, camera: 600 },
+  { name: 'Galaxy Epoch',        yearStart: 9000000000,       yearEnd: 13800000000,       duration: 8,  camera: 600 },
+  { name: 'Now',                 yearStart: 13800000000,      yearEnd: 100000000000000,   duration: 8,  camera: 600 },
+  { name: 'Big Crunch',          yearStart: 100000000000000,  yearEnd: 999999999999999999, duration: 8,  camera: 200 },
 ];
 
 let timelineMode = false;
@@ -1253,11 +1253,34 @@ function advanceScene() {
   }
 }
 
+function formatYear(y) {
+  if (y <= 0) return '0 yr';
+  // Format with commas: 13800000000 → "13,800,000,000"
+  return Math.floor(y).toLocaleString('en-US') + ' yr';
+}
+
 function showEpochDisplay(sc) {
   const epochEl = document.getElementById('epoch-display');
   document.getElementById('epoch-name').textContent = sc.name;
-  document.getElementById('epoch-time').textContent = sc.time;
+  document.getElementById('epoch-time').textContent = formatYear(sc.yearStart);
   epochEl.style.opacity = '1';
+}
+
+function updateYearCounter() {
+  if (!timelineMode) return;
+  const sc = SCENES[currentSceneIdx];
+  const t = Math.min(1, sceneTimer / sc.duration);
+  // Exponential interpolation for large ranges (makes counter spin fast)
+  let currentYear;
+  if (sc.yearStart <= 0) {
+    currentYear = sc.yearEnd * t;
+  } else {
+    // Log-scale interpolation so small→big numbers accelerate visually
+    const logStart = Math.log10(Math.max(1, sc.yearStart));
+    const logEnd = Math.log10(Math.max(1, sc.yearEnd));
+    currentYear = Math.pow(10, logStart + (logEnd - logStart) * t);
+  }
+  document.getElementById('epoch-time').textContent = formatYear(currentYear);
 }
 
 function updateTimelineBar() {
@@ -1636,6 +1659,7 @@ function animate(ts) {
 
   physicsStep(dt * 0.06);
   enforceShellBoundary();
+  updateYearCounter();
   particleMat.uniforms.time.value = ts * 0.001;
 
   filamentTimer += dt;
