@@ -825,8 +825,8 @@ const SCENE_X = [];
 const NUM_S = SCENES.length;
 for (let i = 0; i <= NUM_S; i++) SCENE_X.push((i / NUM_S) * H_W);
 
-// Radius at each boundary
-const SCENE_R = [1, 34, 36, 40, 42, 44, 3]; // Big Bang inflates sharply to 34
+// Radius at each boundary (max must be < H_H/2 = 35)
+const SCENE_R = [1, 26, 28, 30, 31, 32, 2]; // fits within canvas
 
 function getRadius(x) {
   for (let i = 0; i < NUM_S; i++) {
@@ -837,8 +837,9 @@ function getRadius(x) {
         return SCENE_R[0] + (SCENE_R[1] - SCENE_R[0]) * (1 - Math.exp(-t * 5));
       }
       if (i === NUM_S - 1) {
-        // Big Crunch: exponential collapse
-        return SCENE_R[i] + (SCENE_R[i+1] - SCENE_R[i]) * (1 - Math.exp(-t * 4));
+        // Big Crunch: inverse logistic (S-curve) — slow start, accelerate, slow at singularity
+        const s = 1 / (1 + Math.exp(-12 * (t - 0.5))); // sigmoid 0→1
+        return SCENE_R[i] + (SCENE_R[i+1] - SCENE_R[i]) * s;
       }
       return SCENE_R[i] + (SCENE_R[i + 1] - SCENE_R[i]) * t;
     }
