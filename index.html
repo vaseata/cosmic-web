@@ -816,11 +816,12 @@ function toggleLabels() {
 // ─── Timeline: Scene-Based System ─────────────────────────────
 const SCENES = [
   { name: 'Big Bang',            yearStart: 0,               yearEnd: 380000,            duration: 8,  camera: 200 },
-  { name: 'Dark Ages',           yearStart: 380000,           yearEnd: 1000000000,        duration: 7,  camera: 400 },
+  { name: 'Dark Ages',           yearStart: 380000,           yearEnd: 400000000,         duration: 7,  camera: 400 },
+  { name: 'Cosmic Dawn',         yearStart: 400000000,        yearEnd: 1000000000,        duration: 8,  camera: 500 },
   { name: 'Structure Formation', yearStart: 1000000000,       yearEnd: 9000000000,        duration: 10, camera: 600 },
   { name: 'Galaxy Epoch',        yearStart: 9000000000,       yearEnd: 13800000000,       duration: 8,  camera: 600 },
   { name: 'Now',                 yearStart: 13800000000,      yearEnd: 100000000000000,   duration: 8,  camera: 600 },
-  { name: 'Big Crunch',          yearStart: 100000000000000,  yearEnd: 999999999999999999, duration: 8,  camera: 200 },
+  { name: 'Heat Death',          yearStart: 100000000000000,  yearEnd: 999999999999999999, duration: 10, camera: 800 },
 ];
 
 let timelineMode = false;
@@ -841,7 +842,8 @@ const NUM_S = SCENES.length;
 for (let i = 0; i <= NUM_S; i++) SCENE_X.push((i / NUM_S) * H_W);
 
 // Radius at each boundary (max must be < H_H/2 = 35)
-const SCENE_R = [1, 26, 28, 30, 31, 32, 2]; // fits within canvas
+// 8 values: Big Bang start, Dark Ages, Cosmic Dawn, Structure, Galaxy, Now, Heat Death, Heat Death end
+const SCENE_R = [1, 22, 24, 27, 30, 31, 32, 50]; // Heat Death expands outward
 
 function getRadius(x) {
   for (let i = 0; i < NUM_S; i++) {
@@ -852,9 +854,8 @@ function getRadius(x) {
         return SCENE_R[0] + (SCENE_R[1] - SCENE_R[0]) * (1 - Math.exp(-t * 5));
       }
       if (i === NUM_S - 1) {
-        // Big Crunch: inverse logistic (S-curve) — slow start, accelerate, slow at singularity
-        const s = 1 / (1 + Math.exp(-12 * (t - 0.5))); // sigmoid 0→1
-        return SCENE_R[i] + (SCENE_R[i+1] - SCENE_R[i]) * s;
+        // Heat Death: accelerating expansion (exponential)
+        return SCENE_R[i] + (SCENE_R[i+1] - SCENE_R[i]) * (t * t);
       }
       return SCENE_R[i] + (SCENE_R[i + 1] - SCENE_R[i]) * t;
     }
@@ -1060,6 +1061,46 @@ function initScene_DarkAges() {
   markDirty();
 }
 
+function initScene_CosmicDawn() {
+  // First stars ignite, UV radiation reionizes neutral hydrogen
+  // Scattered bright points appear in the dark gas — "islands of light"
+  attractors = [];
+  for (let i = 0; i < NUM_ATTRACTORS; i++) {
+    const [x,y,z] = randSphere(120 + Math.random() * 180);
+    attractors.push({ x, y, z, mass: 60 + Math.random() * 80, vx: 0, vy: 0, vz: 0 });
+  }
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    if (Math.random() < 0.15) {
+      // First stars / proto-galaxies: bright points near attractors
+      const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const spread = 15 + Math.random() * 40;
+      pos[i3]   = near.x + (Math.random()-0.5)*spread;
+      pos[i3+1] = near.y + (Math.random()-0.5)*spread;
+      pos[i3+2] = near.z + (Math.random()-0.5)*spread;
+      // Bright blue-white (hot young stars)
+      col[i3] = 0.6 + Math.random()*0.4;
+      col[i3+1] = 0.7 + Math.random()*0.3;
+      col[i3+2] = 0.9 + Math.random()*0.1;
+      sizes[i] = 2.0 + Math.random() * 2.5;
+    } else {
+      // Still mostly dark neutral gas
+      const [x,y,z] = randSphere(Math.random() * 300);
+      pos[i3] = x; pos[i3+1] = y; pos[i3+2] = z;
+      // Dim, slightly warmer than Dark Ages (reionization glow)
+      const t = Math.random();
+      col[i3] = 0.12 + t*0.15;
+      col[i3+1] = 0.08 + t*0.12;
+      col[i3+2] = 0.15 + t*0.2;
+      sizes[i] = 0.6 + Math.random() * 0.8;
+    }
+    vel[i3] = vel[i3+1] = vel[i3+2] = 0;
+    masses[i] = 1;
+  }
+  GRAVITY = 0.5; DARK_ENERGY = 0.05; FILAMENT_THRESH = 55;
+  markDirty();
+}
+
 function initScene_StructureFormation() {
   // Density fluctuations amplified: ~30% of matter clustering toward attractors
   // Faint proto-filaments beginning to appear between clusters
@@ -1186,34 +1227,34 @@ function initScene_Now() {
 }
 
 // Big Crunch comoving coordinates
-let bigCrunchComoving = null;
-
-function initScene_BigCrunch() {
-  // Capture current positions as comoving coordinates for contraction
-  // Space itself will shrink, carrying matter with it (reverse of Big Bang)
+function initScene_HeatDeath() {
+  // Accelerating expansion: structures dissolve, everything spreads apart
+  // Stars burn out, matter decays — universe becomes cold, dark, empty
+  // Use comoving coords to expand space beyond shell
   const universeRadius = SHELL_RADIUS * 0.9;
-  bigCrunchComoving = new Float32Array(N * 3);
+  heatDeathComoving = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
-    bigCrunchComoving[i3]   = pos[i3]   / universeRadius;
-    bigCrunchComoving[i3+1] = pos[i3+1] / universeRadius;
-    bigCrunchComoving[i3+2] = pos[i3+2] / universeRadius;
+    heatDeathComoving[i3]   = pos[i3]   / universeRadius;
+    heatDeathComoving[i3+1] = pos[i3+1] / universeRadius;
+    heatDeathComoving[i3+2] = pos[i3+2] / universeRadius;
     vel[i3] = vel[i3+1] = vel[i3+2] = 0;
   }
-  // Capture attractor comoving coords
   for (const a of attractors) {
     a.cx = a.x / universeRadius;
     a.cy = a.y / universeRadius;
     a.cz = a.z / universeRadius;
     a.vx = a.vy = a.vz = 0;
   }
-  GRAVITY = 0; DARK_ENERGY = 0; FILAMENT_THRESH = 80;
+  GRAVITY = 0.05; DARK_ENERGY = 2.0; FILAMENT_THRESH = 100;
   markDirty();
 }
+let heatDeathComoving = null;
 
 const SCENE_INITS = [
-  initScene_BigBang, initScene_DarkAges, initScene_StructureFormation,
-  initScene_GalaxyEpoch, initScene_Now, initScene_BigCrunch
+  initScene_BigBang, initScene_DarkAges, initScene_CosmicDawn,
+  initScene_StructureFormation, initScene_GalaxyEpoch, initScene_Now,
+  initScene_HeatDeath
 ];
 
 function markDirty() {
@@ -1281,16 +1322,15 @@ function advanceScene() {
   if (currentSceneIdx < SCENES.length - 1) {
     jumpToScene(currentSceneIdx + 1);
   } else {
-    // Big Crunch complete → fade to black → loop back to Big Bang
+    // Heat Death complete → slow fade to black → loop back to Big Bang
     const flashEl = document.getElementById('flash-overlay');
     flashEl.style.background = '#000';
-    flashEl.style.transition = 'opacity 1.0s';
+    flashEl.style.transition = 'opacity 2.0s';
     flashEl.style.opacity = '1';
     setTimeout(() => {
       currentSceneIdx = -1;
       jumpToScene(0);
-      // jumpToScene handles its own fade-out
-    }, 1500);
+    }, 3000);
   }
 }
 
@@ -1429,52 +1469,32 @@ function darkAgesPhysics(dt) {
   markDirty();
 }
 
-function bigCrunchPhysics(dt) {
-  // Reverse of Big Bang: space contracts, matter rides with it
-  const dur = SCENES[5].duration;
+function heatDeathPhysics(dt) {
+  // Accelerating expansion: space stretches, structures dissolve
+  // Everything drifts apart, dims, and cools to absolute darkness
+  const dur = SCENES[6].duration;
   const t = Math.min(1, sceneTimer / dur);
 
-  // Scale factor: 1 → 0 (reverse of Big Bang timeline)
-  // Slow start → accelerating contraction → final singularity
-  let scaleFactor;
-  if (t < 0.70) {
-    // Slow contraction, accelerating
-    const s = t / 0.70;
-    scaleFactor = 1.0 - s * s * 0.7; // 1.0 → 0.3
-  } else if (t < 0.90) {
-    // Rapid collapse (reverse inflation)
-    const s = (t - 0.70) / 0.20;
-    scaleFactor = 0.3 * Math.exp(-s * 6); // 0.3 → ~0
-  } else {
-    // Singularity
-    scaleFactor = 0.001;
-  }
+  // Scale factor: 1 → expanding (accelerating, no upper bound)
+  // Structures spread apart as dark energy dominates
+  const scaleFactor = 1.0 + t * t * 3.0; // accelerating expansion
 
   const universeRadius = SHELL_RADIUS * 0.9;
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
-    pos[i3]     = bigCrunchComoving[i3]     * scaleFactor * universeRadius;
-    pos[i3 + 1] = bigCrunchComoving[i3 + 1] * scaleFactor * universeRadius;
-    pos[i3 + 2] = bigCrunchComoving[i3 + 2] * scaleFactor * universeRadius;
+    pos[i3]     = heatDeathComoving[i3]     * scaleFactor * universeRadius;
+    pos[i3 + 1] = heatDeathComoving[i3 + 1] * scaleFactor * universeRadius;
+    pos[i3 + 2] = heatDeathComoving[i3 + 2] * scaleFactor * universeRadius;
 
-    // Color: cool blue → heating up → white-hot → darkness
-    let temp;
-    if (t < 0.50) {
-      temp = t / 0.50; // gradually heating as space compresses
-    } else if (t < 0.90) {
-      temp = 1.0; // white-hot compressed plasma
-    } else {
-      temp = 1.0 - ((t - 0.90) / 0.10); // fade to black at singularity
-    }
-
-    const fade = t > 0.90 ? (1.0 - (t - 0.90) / 0.10) : 1.0;
-    col[i3]     = (0.35 + temp * 0.65) * fade;
-    col[i3 + 1] = (0.3  + temp * 0.55) * fade;
-    col[i3 + 2] = (0.6  - temp * 0.3)  * fade;
-    sizes[i]    = (1.0 + temp * 2.5) * fade;
+    // Stars burn out, everything dims to nothing
+    const fade = Math.max(0, 1.0 - t * t * 1.2); // accelerating dimming
+    col[i3]     = (0.35 + Math.random() * 0.1) * fade;
+    col[i3 + 1] = (0.3  + Math.random() * 0.1) * fade;
+    col[i3 + 2] = (0.5  + Math.random() * 0.1) * fade;
+    sizes[i]    = Math.max(0.1, (1.5 - t * 1.2)) * fade;
   }
 
-  // Attractors also contract with space
+  // Attractors also expand with space
   for (const a of attractors) {
     if (a.cx !== undefined) {
       a.x = a.cx * scaleFactor * universeRadius;
@@ -1496,8 +1516,8 @@ function physicsStep(dt) {
   if (timelineMode) {
     if (currentSceneIdx === 0) { bigBangPhysics(dt); return; }
     if (currentSceneIdx === 1) { darkAgesPhysics(dt); return; }
-    if (currentSceneIdx === 5) { bigCrunchPhysics(dt); return; }
-    // Scenes 2,3,4: normal N-body physics
+    if (currentSceneIdx === 6) { heatDeathPhysics(dt); return; }
+    // Scenes 2-5: normal N-body physics
   }
 
   const g = GRAVITY * dt * SIM_SPEED;
@@ -1746,7 +1766,7 @@ function animate(ts) {
   particleMat.uniforms.time.value = ts * 0.001;
 
   filamentTimer += dt;
-  const skipFilaments = timelineMode && (currentSceneIdx === 0 || currentSceneIdx === 5);
+  const skipFilaments = timelineMode && (currentSceneIdx === 0 || currentSceneIdx === 6);
   if (filamentTimer > 8) {
     if (!skipFilaments) updateFilaments();
     else if (filamentLines) { scene.remove(filamentLines); filamentLines.geometry.dispose(); filamentLines = null; filamentCount = 0; }
@@ -1777,18 +1797,10 @@ function animate(ts) {
         const post = (t - 0.30) / 0.70;
         targetScale = 1.0 + post * 0.05;
       }
-    } else if (currentSceneIdx === 5) {
-      // Big Crunch: reverse of Big Bang scale factor
-      const t = sceneTimer / SCENES[5].duration;
-      if (t < 0.70) {
-        const s = t / 0.70;
-        targetScale = 1.0 - s * s * 0.7;
-      } else if (t < 0.90) {
-        const s = (t - 0.70) / 0.20;
-        targetScale = 0.3 * Math.exp(-s * 6);
-      } else {
-        targetScale = 0.001;
-      }
+    } else if (currentSceneIdx === 6) {
+      // Heat Death: accelerating expansion beyond visible boundary
+      const t = sceneTimer / SCENES[6].duration;
+      targetScale = 1.0 + t * t * 3.0;
     } else {
       targetScale = 1.0;
     }
