@@ -815,7 +815,7 @@ function toggleLabels() {
 
 // ─── Timeline: Scene-Based System ─────────────────────────────
 const SCENES = [
-  { name: 'Big Bang',            yearStart: 0,               yearEnd: 380000,            duration: 8,  camera: 200 },
+  { name: 'Big Bang',            yearStart: 0,               yearEnd: 380000,            duration: 14, camera: 200 },
   { name: 'Dark Ages',           yearStart: 380000,           yearEnd: 400000000,         duration: 7,  camera: 400 },
   { name: 'Cosmic Dawn',         yearStart: 400000000,        yearEnd: 1000000000,        duration: 8,  camera: 500 },
   { name: 'Structure Formation', yearStart: 1000000000,       yearEnd: 9000000000,        duration: 10, camera: 600 },
@@ -1389,23 +1389,22 @@ function bigBangPhysics(dt) {
   const dur = SCENES[0].duration;
   const t = Math.min(1, sceneTimer / dur);
 
-  // Phase 1 (0–10%): darkness, quantum fluctuation — tiny point of space appears
-  // Phase 2 (10–30%): inflation — space expands exponentially, filled with hot plasma
-  // Phase 3 (30–100%): expansion slows, plasma cools (white → orange → dark red)
-  // No "explosion from center" — space itself stretches, carrying matter with it
+  // Phase 1 (0–40%): long darkness, quantum fluctuation — tiny bubble slowly forms
+  // Phase 2 (40–50%): INFLATION — space explodes to full size almost instantly
+  // Phase 3 (50–100%): expansion slows, hot plasma cools (white → orange → dark red)
 
-  // Scale factor: how large the universe is (0 = nothing, 1 = full size)
   let scaleFactor;
-  if (t < 0.10) {
-    // Quantum fluctuation: tiny bubble of space
-    scaleFactor = (t / 0.10) * 0.02;
-  } else if (t < 0.30) {
-    // Inflation: exponential expansion
-    const inf = (t - 0.10) / 0.20;
-    scaleFactor = 0.02 + 0.98 * (1.0 - Math.exp(-inf * 6));
+  if (t < 0.40) {
+    // Quantum fluctuation: tiny bubble growing very slowly
+    const q = t / 0.40;
+    scaleFactor = q * q * 0.03; // barely visible, quadratic growth
+  } else if (t < 0.50) {
+    // INFLATION: explosive expansion in a tiny window
+    const inf = (t - 0.40) / 0.10;
+    scaleFactor = 0.03 + 0.97 * (1.0 - Math.exp(-inf * 10));
   } else {
     // Post-inflation: gentle continued expansion
-    const post = (t - 0.30) / 0.70;
+    const post = (t - 0.50) / 0.50;
     scaleFactor = 1.0 + post * 0.05;
   }
 
@@ -1417,18 +1416,16 @@ function bigBangPhysics(dt) {
     pos[i3 + 1] = bigBangComoving[i3 + 1] * scaleFactor * universeRadius;
     pos[i3 + 2] = bigBangComoving[i3 + 2] * scaleFactor * universeRadius;
 
-    // Temperature/color: hot plasma cooling over time
-    // Early: white-hot → mid: orange → late: dim red (approaching Dark Ages)
     let temp;
-    if (t < 0.10) {
+    if (t < 0.40) {
       temp = 0; // invisible (space hasn't formed)
-    } else if (t < 0.30) {
+    } else if (t < 0.50) {
       temp = 1.0; // white-hot plasma during inflation
     } else {
-      temp = 1.0 - ((t - 0.30) / 0.70) * 0.7; // cooling
+      temp = 1.0 - ((t - 0.50) / 0.50) * 0.7; // cooling
     }
 
-    if (t < 0.10) {
+    if (t < 0.40) {
       col[i3] = 0; col[i3+1] = 0; col[i3+2] = 0;
       sizes[i] = 0;
     } else {
@@ -1788,13 +1785,14 @@ function animate(ts) {
       // Inflation: space expands BEFORE matter
       // Shell matches bigBangPhysics scale factor exactly
       const t = sceneTimer / SCENES[0].duration;
-      if (t < 0.10) {
-        targetScale = (t / 0.10) * 0.02;
-      } else if (t < 0.30) {
-        const inf = (t - 0.10) / 0.20;
-        targetScale = 0.02 + 0.98 * (1.0 - Math.exp(-inf * 6));
+      if (t < 0.40) {
+        const q = t / 0.40;
+        targetScale = q * q * 0.03;
+      } else if (t < 0.50) {
+        const inf = (t - 0.40) / 0.10;
+        targetScale = 0.03 + 0.97 * (1.0 - Math.exp(-inf * 10));
       } else {
-        const post = (t - 0.30) / 0.70;
+        const post = (t - 0.50) / 0.50;
         targetScale = 1.0 + post * 0.05;
       }
     } else if (currentSceneIdx === 6) {
