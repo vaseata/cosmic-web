@@ -95,6 +95,19 @@
 
   #buttons {
     position: absolute;
+    top: 28px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    pointer-events: all;
+  }
+  #buttons .btn.scene-active {
+    color: rgba(200, 230, 255, 1);
+    border-color: rgba(150, 210, 255, 0.8);
+    background: rgba(40, 90, 180, 0.4);
+  }
+  #buttons2 {
+    position: absolute;
     bottom: 36px; right: 36px;
     display: flex;
     flex-direction: column;
@@ -334,12 +347,18 @@
   </div>
 
   <div id="buttons">
+    <button class="btn active" id="btn-scene-0" onclick="jumpToScene(0)">Big Bang</button>
+    <button class="btn" id="btn-scene-1" onclick="jumpToScene(1)">Dark Ages</button>
+    <button class="btn" id="btn-scene-2" onclick="jumpToScene(2)">Formation</button>
+    <button class="btn" id="btn-scene-3" onclick="jumpToScene(3)">Galaxies</button>
+    <button class="btn" id="btn-scene-4" onclick="jumpToScene(4)">Now</button>
+    <button class="btn" id="btn-scene-5" onclick="jumpToScene(5)">Big Crunch</button>
+  </div>
+
+  <div id="buttons2">
     <button class="btn active" id="btn-rotate" onclick="toggleRotate()">Auto Rotate</button>
-    <button class="btn" id="btn-trails" onclick="toggleTrails()">Trails</button>
     <button class="btn" id="btn-labels" onclick="toggleLabels()">Labels</button>
-    <button class="btn" id="btn-timeline" onclick="toggleTimeline()">Play Timeline</button>
     <button class="btn" id="btn-gyro" onclick="toggleGyro()">Gyro</button>
-    <button class="btn" onclick="addMassiveNode()">Add Mass</button>
     <button class="btn" onclick="resetSim()">Reset</button>
   </div>
 
@@ -1021,6 +1040,7 @@ function enforceShellBoundary() {
 // ─── Scene Transitions ─────────────────────────────────────────
 function jumpToScene(idx) {
   if (transitioning || idx === currentSceneIdx) return;
+  timelineMode = true;
   transitioning = true;
   const flashEl = document.getElementById('flash-overlay');
   flashEl.style.transition = 'opacity 0.4s';
@@ -1036,6 +1056,7 @@ function jumpToScene(idx) {
     updateAttractorMarkers();
     showEpochDisplay(SCENES[idx]);
     updateTimelineBar();
+    updateSceneButtons();
 
     flashEl.style.transition = 'opacity 0.8s';
     flashEl.style.opacity = '0';
@@ -1050,7 +1071,7 @@ function advanceScene() {
   if (currentSceneIdx < SCENES.length - 1) {
     jumpToScene(currentSceneIdx + 1);
   } else {
-    // Big Crunch complete → white flash → back to free mode
+    // Big Crunch complete → white flash → loop back to Big Bang
     const flashEl = document.getElementById('flash-overlay');
     flashEl.style.background = '#fff';
     flashEl.style.transition = 'opacity 0.3s';
@@ -1058,11 +1079,8 @@ function advanceScene() {
     setTimeout(() => {
       flashEl.style.transition = 'opacity 1.5s';
       flashEl.style.opacity = '0';
-      timelineMode = false;
-      document.getElementById('btn-timeline').classList.remove('active');
-      document.getElementById('epoch-display').style.opacity = '0';
-      GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
-      initSim();
+      currentSceneIdx = -1; // so jumpToScene(0) doesn't skip
+      jumpToScene(0);
     }, 800);
   }
 }
@@ -1081,20 +1099,20 @@ function updateTimelineBar() {
 }
 
 function toggleTimeline() {
-  timelineMode = !timelineMode;
-  document.getElementById('btn-timeline').classList.toggle('active', timelineMode);
+  // Always in timeline mode now - restart from beginning
+  timelineMode = true;
+  currentSceneIdx = 0;
+  sceneTimer = 0;
+  SCENE_INITS[0]();
+  assignLabels();
+  showEpochDisplay(SCENES[0]);
+  updateSceneButtons();
+}
 
-  if (timelineMode) {
-    currentSceneIdx = 0;
-    sceneTimer = 0;
-    SCENE_INITS[0]();
-    assignLabels();
-    showEpochDisplay(SCENES[0]);
-    flash('Timeline Started');
-  } else {
-    document.getElementById('epoch-display').style.opacity = '0';
-    GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
-    flash('Free Mode');
+function updateSceneButtons() {
+  for (let i = 0; i < SCENES.length; i++) {
+    const btn = document.getElementById('btn-scene-' + i);
+    if (btn) btn.classList.toggle('scene-active', i === currentSceneIdx);
   }
 }
 
@@ -1270,12 +1288,8 @@ function addMassiveNode() {
   flash('Mass Cluster Added');
 }
 function resetSim() {
-  timelineMode = false;
-  document.getElementById('btn-timeline').classList.remove('active');
-  document.getElementById('epoch-display').style.opacity = '0';
-  GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
-  initSim();
-  flash('Simulation Reset');
+  currentSceneIdx = -1;
+  jumpToScene(0);
 }
 
 function flash(msg) {
@@ -1418,9 +1432,6 @@ function animate(ts) {
     }
   }
 
-  // Showcase cycle (normal mode)
-  updateShowcase(dt / 60);
-
   physicsStep(dt * 0.06);
   enforceShellBoundary();
   particleMat.uniforms.time.value = ts * 0.001;
@@ -1480,7 +1491,14 @@ function animate(ts) {
 }
 
 // ─── Init ──────────────────────────────────────────────────────
-initSim();
+// Start in timeline mode (Big Bang)
+timelineMode = true;
+currentSceneIdx = 0;
+sceneTimer = 0;
+SCENE_INITS[0]();
+assignLabels();
+showEpochDisplay(SCENES[0]);
+updateSceneButtons();
 updateAttractorMarkers();
 updateStats();
 animate(0);
