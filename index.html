@@ -2,12 +2,13 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Cosmic Web — Large Scale Structure Simulator</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #fff; }
-  canvas { display: block; }
+  html, body { width: 100%; height: 100%; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #fff; touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; }
 
   #ui {
     position: fixed;
@@ -419,8 +420,10 @@ document.addEventListener('touchmove', e => {
 // ─── Gyroscope (Gargantua-style) ──────────────────────────────
 let gyroEnabled = false;
 let gyroAlpha = 0, gyroBeta = 0;
-let gyroTargetTheta = 0, gyroTargetPhi = Math.PI / 2;
-const GYRO_LERP = 0.08;
+let gyroBaseAlpha = null, gyroBaseBeta = null; // baseline at activation
+let gyroBaseTheta = 0, gyroBasePhi = Math.PI / 2;
+const GYRO_LERP = 0.04;
+const GYRO_SENSITIVITY = 0.4; // how much device tilt maps to camera rotation
 
 function toggleGyro() {
   if (!gyroEnabled) {
@@ -435,6 +438,7 @@ function toggleGyro() {
     }
   } else {
     gyroEnabled = false;
+    gyroBaseAlpha = null;
     window.removeEventListener('deviceorientation', onGyro);
     document.getElementById('btn-gyro').classList.remove('active');
     flash('Gyro Off');
@@ -443,6 +447,9 @@ function toggleGyro() {
 
 function enableGyro() {
   gyroEnabled = true;
+  gyroBaseAlpha = null; // will be set on first reading
+  gyroBaseTheta = orbit.theta;
+  gyroBasePhi = orbit.phi;
   autoRotate = false;
   document.getElementById('btn-rotate').classList.remove('active');
   document.getElementById('btn-gyro').classList.add('active');
@@ -453,16 +460,27 @@ function enableGyro() {
 function onGyro(e) {
   if (e.alpha !== null) gyroAlpha = e.alpha;
   if (e.beta  !== null) gyroBeta  = e.beta;
+  // Capture baseline on first reading
+  if (gyroBaseAlpha === null) {
+    gyroBaseAlpha = gyroAlpha;
+    gyroBaseBeta = gyroBeta;
+  }
 }
 
 function updateGyro() {
-  if (!gyroEnabled || mouse.down) return;
-  gyroTargetTheta = (gyroAlpha / 360) * Math.PI * 2;
-  gyroTargetPhi = Math.max(0.3, Math.min(Math.PI - 0.3,
-    ((gyroBeta + 90) / 180) * Math.PI
+  if (!gyroEnabled || mouse.down || gyroBaseAlpha === null) return;
+  // Delta from baseline, normalized to -180..180
+  let dAlpha = gyroAlpha - gyroBaseAlpha;
+  if (dAlpha > 180) dAlpha -= 360;
+  if (dAlpha < -180) dAlpha += 360;
+  let dBeta = gyroBeta - gyroBaseBeta;
+
+  const targetTheta = gyroBaseTheta - (dAlpha / 180) * Math.PI * GYRO_SENSITIVITY;
+  const targetPhi = Math.max(0.3, Math.min(Math.PI - 0.3,
+    gyroBasePhi - (dBeta / 90) * Math.PI * 0.5 * GYRO_SENSITIVITY
   ));
-  orbit.theta += (gyroTargetTheta - orbit.theta) * GYRO_LERP;
-  orbit.phi   += (gyroTargetPhi   - orbit.phi)   * GYRO_LERP;
+  orbit.theta += (targetTheta - orbit.theta) * GYRO_LERP;
+  orbit.phi   += (targetPhi   - orbit.phi)   * GYRO_LERP;
 }
 
 // ─── Particle System ───────────────────────────────────────────
