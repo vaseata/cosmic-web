@@ -816,7 +816,7 @@ let transitioning = false; // fade transition in progress
 // ─── Cosmic History Diagram ───────────────────────────────────
 const hCanvas = document.getElementById('history-canvas');
 const hCtx = hCanvas.getContext('2d');
-const H_W = 280, H_H = 70;
+const H_W = 340, H_H = 90;
 hCanvas.width = H_W; hCanvas.height = H_H;
 hCanvas.style.width = H_W + 'px'; hCanvas.style.height = H_H + 'px';
 
@@ -948,13 +948,13 @@ function drawHistoryDiagram() {
   }
 
   // Era labels
-  hCtx.font = '7px Courier New';
+  hCtx.font = '9px Courier New';
   hCtx.textAlign = 'center';
   for (let i = 0; i < NUM_S; i++) {
     const cx2 = (SCENE_X[i] + SCENE_X[i + 1]) / 2;
     const isActive = (i === currentSceneIdx);
     hCtx.fillStyle = isActive ? 'rgba(200, 230, 255, 0.9)' : 'rgba(120, 170, 255, 0.4)';
-    hCtx.fillText(SCENES[i].name, cx2, H_H - 3);
+    hCtx.fillText(SCENES[i].name, cx2, H_H - 4);
   }
 }
 
