@@ -964,7 +964,15 @@ hCanvas.addEventListener('click', e => {
 });
 
 // ─── Scene Initializers ────────────────────────────────────────
+// Helper: random point on sphere
+function randSphere(r) {
+  const th = Math.random() * Math.PI * 2;
+  const ph = Math.acos(2 * Math.random() - 1);
+  return [Math.sin(ph)*Math.cos(th)*r, Math.cos(ph)*r, Math.sin(ph)*Math.sin(th)*r];
+}
+
 function initScene_BigBang() {
+  // Singularity → explosion. All matter at origin, radial velocity
   attractors = [];
   for (let i = 0; i < NUM_ATTRACTORS; i++) {
     attractors.push({ x: 0, y: 0, z: 0, mass: 100 + Math.random() * 100, vx: 0, vy: 0, vz: 0 });
@@ -972,93 +980,174 @@ function initScene_BigBang() {
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
     pos[i3] = pos[i3+1] = pos[i3+2] = 0;
-    // Radial explosion velocity
-    const th = Math.random() * Math.PI * 2;
-    const ph = Math.acos(2 * Math.random() - 1);
-    const sp = 3 + Math.random() * 8;
-    vel[i3]   = Math.sin(ph) * Math.cos(th) * sp;
-    vel[i3+1] = Math.cos(ph) * sp;
-    vel[i3+2] = Math.sin(ph) * Math.sin(th) * sp;
+    const [vx,vy,vz] = randSphere(3 + Math.random() * 8);
+    vel[i3] = vx; vel[i3+1] = vy; vel[i3+2] = vz;
     col[i3] = 1.0; col[i3+1] = 0.95; col[i3+2] = 0.8;
     sizes[i] = 2.5 + Math.random() * 3.0;
     masses[i] = 1;
   }
+  GRAVITY = 0.1; DARK_ENERGY = 0.0; FILAMENT_THRESH = 30;
   markDirty();
 }
 
 function initScene_DarkAges() {
+  // Nearly uniform distribution with tiny density fluctuations (~1% variation)
+  // No structure yet — matter spread almost evenly, very dim
   attractors = [];
   for (let i = 0; i < NUM_ATTRACTORS; i++) {
-    const th = Math.random() * Math.PI * 2;
-    const ph = Math.acos(2 * Math.random() - 1);
-    const r = 100 + Math.random() * 200;
-    attractors.push({
-      x: Math.sin(ph)*Math.cos(th)*r, y: Math.cos(ph)*r, z: Math.sin(ph)*Math.sin(th)*r,
-      mass: 50 + Math.random() * 80, vx: 0, vy: 0, vz: 0
-    });
+    const [x,y,z] = randSphere(150 + Math.random() * 150);
+    attractors.push({ x, y, z, mass: 30 + Math.random() * 40, vx: 0, vy: 0, vz: 0 });
   }
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
-    const th = Math.random() * Math.PI * 2;
-    const ph = Math.acos(2 * Math.random() - 1);
-    const r = Math.random() * 300;
-    pos[i3]   = Math.sin(ph)*Math.cos(th)*r;
-    pos[i3+1] = Math.cos(ph)*r;
-    pos[i3+2] = Math.sin(ph)*Math.sin(th)*r;
+    // Uniform sphere with very slight clustering (5% bias toward attractors)
+    if (Math.random() < 0.05) {
+      const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const [dx,dy,dz] = randSphere(30 + Math.random() * 50);
+      pos[i3] = near.x + dx; pos[i3+1] = near.y + dy; pos[i3+2] = near.z + dz;
+    } else {
+      const [x,y,z] = randSphere(Math.random() * 300);
+      pos[i3] = x; pos[i3+1] = y; pos[i3+2] = z;
+    }
     vel[i3] = vel[i3+1] = vel[i3+2] = 0;
-    // Dark red / dim
-    col[i3] = 0.3 + Math.random()*0.15;
-    col[i3+1] = 0.15 + Math.random()*0.1;
-    col[i3+2] = 0.1 + Math.random()*0.1;
-    sizes[i] = 1.0 + Math.random() * 1.5;
+    // Very dim warm glow (CMB afterglow fading)
+    const t = 0.15 + Math.random() * 0.1;
+    col[i3] = t * 1.5; col[i3+1] = t * 0.6; col[i3+2] = t * 0.4;
+    sizes[i] = 0.8 + Math.random() * 0.8;
     masses[i] = 1;
   }
+  GRAVITY = 0.3; DARK_ENERGY = 0.02; FILAMENT_THRESH = 50;
   markDirty();
 }
 
 function initScene_StructureFormation() {
-  // Start spread out, let gravity form filaments
+  // Density fluctuations amplified: ~30% of matter clustering toward attractors
+  // Faint proto-filaments beginning to appear between clusters
   attractors = [];
   for (let i = 0; i < NUM_ATTRACTORS; i++) {
-    attractors.push({
-      x: (Math.random()-0.5)*500, y: (Math.random()-0.5)*500, z: (Math.random()-0.5)*500,
-      mass: 100 + Math.random()*120, vx: 0, vy: 0, vz: 0
-    });
+    const [x,y,z] = randSphere(120 + Math.random() * 200);
+    attractors.push({ x, y, z, mass: 80 + Math.random() * 100, vx: 0, vy: 0, vz: 0 });
   }
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
-    // Loosely distributed, biased toward attractors
-    const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
-    const spread = 80 + Math.random() * 250;
-    pos[i3]   = near.x + (Math.random()-0.5)*spread;
-    pos[i3+1] = near.y + (Math.random()-0.5)*spread;
-    pos[i3+2] = near.z + (Math.random()-0.5)*spread;
-    vel[i3] = (Math.random()-0.5)*0.5;
-    vel[i3+1] = (Math.random()-0.5)*0.5;
-    vel[i3+2] = (Math.random()-0.5)*0.5;
+    if (Math.random() < 0.35) {
+      // Clustering toward attractors (proto-clusters forming)
+      const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const spread = 40 + Math.random() * 120;
+      pos[i3]   = near.x + (Math.random()-0.5)*spread;
+      pos[i3+1] = near.y + (Math.random()-0.5)*spread;
+      pos[i3+2] = near.z + (Math.random()-0.5)*spread;
+    } else {
+      // Still mostly uniform background
+      const [x,y,z] = randSphere(Math.random() * 320);
+      pos[i3] = x; pos[i3+1] = y; pos[i3+2] = z;
+    }
+    vel[i3] = (Math.random()-0.5)*0.3;
+    vel[i3+1] = (Math.random()-0.5)*0.3;
+    vel[i3+2] = (Math.random()-0.5)*0.3;
+    // Cool blue, beginning to differentiate
     const t = Math.random();
-    col[i3] = 0.3 + t*0.3; col[i3+1] = 0.4 + t*0.3; col[i3+2] = 0.7 + t*0.3;
-    sizes[i] = 1.0 + Math.random()*2.0;
+    col[i3] = 0.2 + t*0.25; col[i3+1] = 0.3 + t*0.3; col[i3+2] = 0.6 + t*0.35;
+    sizes[i] = 1.0 + Math.random()*1.5;
     masses[i] = 0.5 + Math.random()*2.5;
   }
-  GRAVITY = 1.5; DARK_ENERGY = 0.1; FILAMENT_THRESH = 70;
+  GRAVITY = 1.2; DARK_ENERGY = 0.1; FILAMENT_THRESH = 65;
   markDirty();
 }
 
 function initScene_GalaxyEpoch() {
-  initSim();
-  GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
+  // Clear filament structure: 60% of matter in filaments/clusters, 40% in voids
+  // Filaments are elongated bridges between clusters
+  attractors = [];
+  for (let i = 0; i < NUM_ATTRACTORS; i++) {
+    const [x,y,z] = randSphere(80 + Math.random() * 200);
+    attractors.push({ x, y, z, mass: 100 + Math.random() * 120, vx: 0, vy: 0, vz: 0 });
+  }
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    const r = Math.random();
+    if (r < 0.35) {
+      // Dense cluster cores
+      const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const spread = 15 + Math.random() * 40;
+      pos[i3]   = near.x + (Math.random()-0.5)*spread;
+      pos[i3+1] = near.y + (Math.random()-0.5)*spread;
+      pos[i3+2] = near.z + (Math.random()-0.5)*spread;
+    } else if (r < 0.70) {
+      // Filaments: particles along lines connecting nearby attractors
+      const a = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const b = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const t = Math.random();
+      const jitter = 20 + Math.random() * 30;
+      pos[i3]   = a.x + (b.x - a.x) * t + (Math.random()-0.5) * jitter;
+      pos[i3+1] = a.y + (b.y - a.y) * t + (Math.random()-0.5) * jitter;
+      pos[i3+2] = a.z + (b.z - a.z) * t + (Math.random()-0.5) * jitter;
+    } else {
+      // Sparse void regions
+      const [x,y,z] = randSphere(100 + Math.random() * 250);
+      pos[i3] = x; pos[i3+1] = y; pos[i3+2] = z;
+    }
+    vel[i3] = (Math.random()-0.5)*0.2;
+    vel[i3+1] = (Math.random()-0.5)*0.2;
+    vel[i3+2] = (Math.random()-0.5)*0.2;
+    // Blue-white with warm cores
+    const t2 = Math.random();
+    col[i3] = 0.35 + t2*0.4; col[i3+1] = 0.5 + t2*0.3; col[i3+2] = 0.8 + t2*0.2;
+    sizes[i] = 1.0 + Math.random()*2.5;
+    masses[i] = 0.5 + Math.random()*2.5;
+  }
+  GRAVITY = 0.8; DARK_ENERGY = 0.25; FILAMENT_THRESH = 55;
+  markDirty();
 }
 
 function initScene_Now() {
-  // Just continue current state - it's already the cosmic web
-  GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
+  // Mature cosmic web: tight filaments, prominent clusters, large empty voids
+  // Most matter concentrated in thin sheets and filaments
+  attractors = [];
+  for (let i = 0; i < NUM_ATTRACTORS; i++) {
+    const [x,y,z] = randSphere(60 + Math.random() * 220);
+    attractors.push({ x, y, z, mass: 120 + Math.random() * 130, vx: 0, vy: 0, vz: 0 });
+  }
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    const r = Math.random();
+    if (r < 0.25) {
+      // Dense cluster nodes (galaxy clusters at filament intersections)
+      const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const spread = 8 + Math.random() * 25;
+      pos[i3]   = near.x + (Math.random()-0.5)*spread;
+      pos[i3+1] = near.y + (Math.random()-0.5)*spread;
+      pos[i3+2] = near.z + (Math.random()-0.5)*spread;
+    } else if (r < 0.75) {
+      // Thin filaments connecting clusters
+      const a = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const b = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+      const t = Math.random();
+      const jitter = 10 + Math.random() * 18;
+      pos[i3]   = a.x + (b.x - a.x) * t + (Math.random()-0.5) * jitter;
+      pos[i3+1] = a.y + (b.y - a.y) * t + (Math.random()-0.5) * jitter;
+      pos[i3+2] = a.z + (b.z - a.z) * t + (Math.random()-0.5) * jitter;
+    } else {
+      // Very sparse voids (vast empty regions)
+      const [x,y,z] = randSphere(150 + Math.random() * 200);
+      pos[i3] = x; pos[i3+1] = y; pos[i3+2] = z;
+    }
+    vel[i3] = (Math.random()-0.5)*0.15;
+    vel[i3+1] = (Math.random()-0.5)*0.15;
+    vel[i3+2] = (Math.random()-0.5)*0.15;
+    // Classic cosmic web blue-white
+    const t2 = Math.random();
+    col[i3] = 0.35 + t2*0.55; col[i3+1] = 0.55 + t2*0.25; col[i3+2] = 0.85 + t2*0.15;
+    sizes[i] = 1.0 + Math.random()*3.0;
+    masses[i] = 0.5 + Math.random()*2.5;
+  }
+  GRAVITY = 0.8; DARK_ENERGY = 0.35; FILAMENT_THRESH = 50;
+  markDirty();
 }
 
 function initScene_BigCrunch() {
-  // Use current positions, start collapsing
+  // Current structure collapsing inward — everything pulled to origin
   GRAVITY = 2.5; DARK_ENERGY = 0.0; FILAMENT_THRESH = 80;
-  // Give all particles inward velocity
   for (let i = 0; i < N; i++) {
     const i3 = i * 3;
     const len = Math.sqrt(pos[i3]*pos[i3]+pos[i3+1]*pos[i3+1]+pos[i3+2]*pos[i3+2]) || 1;
