@@ -95,20 +95,7 @@
 
   #buttons {
     position: absolute;
-    top: 28px; left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 6px;
-    pointer-events: all;
-  }
-  #buttons .btn.scene-active {
-    color: rgba(200, 230, 255, 1);
-    border-color: rgba(150, 210, 255, 0.8);
-    background: rgba(40, 90, 180, 0.4);
-  }
-  #buttons2 {
-    position: absolute;
-    bottom: 36px; right: 36px;
+    bottom: 120px; right: 36px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -140,8 +127,7 @@
   /* ─── Cosmic History Diagram ────────────────────────────────── */
   #history-diagram {
     position: absolute;
-    bottom: 12px; left: 50%;
-    transform: translateX(-50%);
+    bottom: 24px; right: 36px;
     pointer-events: all;
   }
   #history-diagram canvas {
@@ -314,22 +300,11 @@
   </div>
 
   <div id="buttons">
-    <button class="btn active" id="btn-scene-0" onclick="jumpToScene(0)">Big Bang</button>
-    <button class="btn" id="btn-scene-1" onclick="jumpToScene(1)">Dark Ages</button>
-    <button class="btn" id="btn-scene-2" onclick="jumpToScene(2)">Formation</button>
-    <button class="btn" id="btn-scene-3" onclick="jumpToScene(3)">Galaxies</button>
-    <button class="btn" id="btn-scene-4" onclick="jumpToScene(4)">Now</button>
-    <button class="btn" id="btn-scene-5" onclick="jumpToScene(5)">Big Crunch</button>
-  </div>
-
-  <div id="buttons2">
     <button class="btn active" id="btn-rotate" onclick="toggleRotate()">Auto Rotate</button>
     <button class="btn" id="btn-labels" onclick="toggleLabels()">Labels</button>
     <button class="btn" id="btn-gyro" onclick="toggleGyro()">Gyro</button>
     <button class="btn" onclick="resetSim()">Reset</button>
   </div>
-
-  <div id="info">Drag to orbit · Scroll to zoom · Click to add attractor</div>
 
   <div id="tooltip"></div>
   <div id="mode-indicator"></div>
@@ -841,7 +816,7 @@ let transitioning = false; // fade transition in progress
 // ─── Cosmic History Diagram ───────────────────────────────────
 const hCanvas = document.getElementById('history-canvas');
 const hCtx = hCanvas.getContext('2d');
-const H_W = 500, H_H = 90;
+const H_W = 280, H_H = 70;
 hCanvas.width = H_W; hCanvas.height = H_H;
 hCanvas.style.width = H_W + 'px'; hCanvas.style.height = H_H + 'px';
 
@@ -1204,12 +1179,7 @@ function toggleTimeline() {
   updateSceneButtons();
 }
 
-function updateSceneButtons() {
-  for (let i = 0; i < SCENES.length; i++) {
-    const btn = document.getElementById('btn-scene-' + i);
-    if (btn) btn.classList.toggle('scene-active', i === currentSceneIdx);
-  }
-}
+function updateSceneButtons() {}
 
 // ─── Scene-specific physics ────────────────────────────────────
 function bigBangPhysics(dt) {
