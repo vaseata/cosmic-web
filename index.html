@@ -1388,12 +1388,18 @@ updateAttractorMarkers();
 updateStats();
 animate(0);
 
-window.addEventListener('resize', () => {
+function handleResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-});
+}
+window.addEventListener('resize', handleResize);
+// Mobile: also handle orientation change and visual viewport resize
+window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', handleResize);
+}
 </script>
 </body>
 </html>
