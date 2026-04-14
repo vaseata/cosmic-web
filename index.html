@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cosmic Web — Large Scale Structure Simulator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #fff; }
+  canvas { display: block; }
+
+  #ui {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #header {
+    position: absolute;
+    top: 28px; left: 36px;
+  }
+  #header h1 {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.25em;
+    color: rgba(150, 200, 255, 0.7);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  #header h2 {
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    color: rgba(200, 230, 255, 0.9);
+    font-family: Georgia, serif;
+  }
+
+  #stats {
+    position: absolute;
+    top: 28px; right: 36px;
+    text-align: right;
+    display: grid;
+    gap: 6px;
+  }
+  .stat {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: rgba(120, 180, 255, 0.5);
+    text-transform: uppercase;
+  }
+  .stat span {
+    color: rgba(180, 220, 255, 0.9);
+    font-size: 13px;
+    display: block;
+    letter-spacing: 0.05em;
+  }
+
+  #controls {
+    position: absolute;
+    bottom: 36px; left: 36px;
+    display: grid;
+    gap: 16px;
+    pointer-events: all;
+  }
+  .ctrl-group { display: flex; flex-direction: column; gap: 6px; }
+  .ctrl-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: rgba(120, 180, 255, 0.5);
+    text-transform: uppercase;
+  }
+  .ctrl-row { display: flex; align-items: center; gap: 10px; }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 120px;
+    height: 1px;
+    background: rgba(100, 160, 255, 0.3);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(150, 210, 255, 0.9);
+    cursor: pointer;
+  }
+  .ctrl-val {
+    font-size: 11px;
+    color: rgba(160, 210, 255, 0.8);
+    min-width: 32px;
+  }
+
+  #buttons {
+    position: absolute;
+    bottom: 36px; right: 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: all;
+  }
+  .btn {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(150, 200, 255, 0.7);
+    background: rgba(20, 50, 100, 0.3);
+    border: 0.5px solid rgba(100, 160, 255, 0.25);
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn:hover {
+    color: rgba(200, 230, 255, 1);
+    border-color: rgba(150, 210, 255, 0.6);
+    background: rgba(30, 70, 140, 0.4);
+  }
+  .btn.active {
+    color: rgba(200, 230, 255, 1);
+    border-color: rgba(150, 210, 255, 0.8);
+    background: rgba(40, 90, 180, 0.4);
+  }
+
+  /* ─── Timeline Bar ─────────────────────────────────────────── */
+  #time-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 6px;
+    background: rgba(100, 160, 255, 0.1);
+    pointer-events: all;
+    cursor: pointer;
+    transition: height 0.2s;
+  }
+  #time-bar:hover {
+    height: 20px;
+  }
+  #time-progress {
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(100, 180, 255, 0.6));
+    width: 0%;
+    transition: width 0.05s linear;
+    pointer-events: none;
+  }
+  #timeline-labels {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 20px;
+    display: flex;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #time-bar:hover + #timeline-labels,
+  #timeline-labels:hover {
+    opacity: 1;
+  }
+  .tl-label {
+    font-size: 7px;
+    letter-spacing: 0.1em;
+    color: rgba(150, 200, 255, 0.6);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 0.5px solid rgba(100, 160, 255, 0.15);
+  }
+  .tl-label:last-child { border-right: none; }
+
+  /* ─── Epoch Display ────────────────────────────────────────── */
+  #epoch-display {
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s;
+  }
+  #epoch-display .epoch-name {
+    font-size: 28px;
+    font-family: Georgia, serif;
+    letter-spacing: 0.15em;
+    color: rgba(200, 230, 255, 0.9);
+    text-transform: uppercase;
+  }
+  #epoch-display .epoch-time {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: rgba(120, 180, 255, 0.5);
+    margin-top: 6px;
+  }
+
+  /* ─── White Flash ──────────────────────────────────────────── */
+  #flash-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #fff;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 20;
+  }
+
+  #info {
+    position: absolute;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: rgba(100, 160, 255, 0.35);
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  #tooltip {
+    position: absolute;
+    display: none;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: rgba(180, 220, 255, 0.9);
+    background: rgba(5, 15, 40, 0.85);
+    border: 0.5px solid rgba(100, 160, 255, 0.3);
+    padding: 8px 12px;
+    pointer-events: none;
+  }
+
+  #mode-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: rgba(150, 200, 255, 0.4);
+    text-transform: uppercase;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+
+  /* ─── 3D Labels ────────────────────────────────────────────── */
+  .space-label {
+    position: absolute;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 0.3s;
+    text-shadow: 0 0 8px rgba(0,0,0,0.8);
+    z-index: 11;
+  }
+  .space-label.type-cluster { color: rgba(220, 240, 255, 0.85); }
+  .space-label.type-quasar  { color: rgba(255, 180, 100, 0.85); }
+  .space-label.type-galaxy  { color: rgba(130, 180, 255, 0.85); }
+  .space-label .label-dot {
+    display: inline-block;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .type-cluster .label-dot { background: rgba(220, 240, 255, 0.9); }
+  .type-quasar  .label-dot { background: rgba(255, 180, 100, 0.9); }
+  .type-galaxy  .label-dot { background: rgba(130, 180, 255, 0.9); }
+
+  /* ─── Gyro Button (mobile only) ─────────────────────────────── */
+  #btn-gyro { display: none; }
+  @media (pointer: coarse) {
+    #btn-gyro { display: block; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="flash-overlay"></div>
+
+<div id="ui">
+  <div id="header">
+    <h1>Simulation · Cosmological</h1>
+    <h2>Cosmic Web</h2>
+  </div>
+
+  <div id="stats">
+    <div class="stat">Particles<span id="s-particles">—</span></div>
+    <div class="stat">Filaments<span id="s-filaments">—</span></div>
+    <div class="stat">Time Step<span id="s-time">T+0</span></div>
+    <div class="stat">Voids<span id="s-voids">—</span></div>
+  </div>
+
+  <div id="epoch-display">
+    <div class="epoch-name" id="epoch-name"></div>
+    <div class="epoch-time" id="epoch-time"></div>
+  </div>
+
+  <div id="controls">
+    <div class="ctrl-group">
+      <div class="ctrl-label">Gravity</div>
+      <div class="ctrl-row">
+        <input type="range" id="r-gravity" min="0.1" max="3.0" step="0.05" value="0.8">
+        <span class="ctrl-val" id="v-gravity">0.8</span>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Dark Energy</div>
+      <div class="ctrl-row">
+        <input type="range" id="r-dark" min="0" max="1.5" step="0.05" value="0.3">
+        <span class="ctrl-val" id="v-dark">0.3</span>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Filament Threshold</div>
+      <div class="ctrl-row">
+        <input type="range" id="r-thresh" min="20" max="120" step="5" value="60">
+        <span class="ctrl-val" id="v-thresh">60</span>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Simulation Speed</div>
+      <div class="ctrl-row">
+        <input type="range" id="r-speed" min="0.1" max="3.0" step="0.1" value="1.0">
+        <span class="ctrl-val" id="v-speed">1.0×</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="buttons">
+    <button class="btn active" id="btn-rotate" onclick="toggleRotate()">Auto Rotate</button>
+    <button class="btn" id="btn-trails" onclick="toggleTrails()">Trails</button>
+    <button class="btn" id="btn-labels" onclick="toggleLabels()">Labels</button>
+    <button class="btn" id="btn-timeline" onclick="toggleTimeline()">Play Timeline</button>
+    <button class="btn" id="btn-gyro" onclick="toggleGyro()">Gyro</button>
+    <button class="btn" onclick="addMassiveNode()">Add Mass</button>
+    <button class="btn" onclick="resetSim()">Reset</button>
+  </div>
+
+  <div id="info">Drag to orbit · Scroll to zoom · Click to add attractor</div>
+
+  <div id="tooltip"></div>
+  <div id="mode-indicator"></div>
+  <div id="time-bar"><div id="time-progress"></div></div>
+  <div id="timeline-labels"></div>
+</div>
+
+<div id="label-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── Scene Setup ───────────────────────────────────────────────
+const W = window.innerWidth, H = window.innerHeight;
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(W, H);
+renderer.setClearColor(0x00010a);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x00010a, 0.0012);
+
+const camera = new THREE.PerspectiveCamera(55, W / H, 0.5, 3000);
+camera.position.set(0, 0, 600);
+
+// ─── Params ────────────────────────────────────────────────────
+let GRAVITY = 0.8;
+let DARK_ENERGY = 0.3;
+let FILAMENT_THRESH = 60;
+let SIM_SPEED = 1.0;
+let autoRotate = true;
+let showTrails = false;
+let simTime = 0;
+
+// ─── Orbit Controls (manual) ───────────────────────────────────
+let mouse = { down: false, x: 0, y: 0, px: 0, py: 0 };
+let orbit = { theta: 0, phi: Math.PI / 2, r: 600 };
+
+document.getElementById('c').addEventListener('mousedown', e => {
+  mouse.down = true; mouse.px = e.clientX; mouse.py = e.clientY;
+});
+document.addEventListener('mouseup', () => mouse.down = false);
+document.addEventListener('mousemove', e => {
+  if (!mouse.down) return;
+  const dx = e.clientX - mouse.px, dy = e.clientY - mouse.py;
+  orbit.theta -= dx * 0.005;
+  orbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, orbit.phi - dy * 0.005));
+  mouse.px = e.clientX; mouse.py = e.clientY;
+  autoRotate = false;
+  document.getElementById('btn-rotate').classList.remove('active');
+});
+document.getElementById('c').addEventListener('wheel', e => {
+  orbit.r = Math.max(150, Math.min(1200, orbit.r + e.deltaY * 0.5));
+});
+document.getElementById('c').addEventListener('click', e => {
+  if (Math.abs(e.clientX - mouse.px) < 3) spawnAttractorAt(e.clientX, e.clientY);
+});
+
+// Touch support
+document.getElementById('c').addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    mouse.down = true; mouse.px = e.touches[0].clientX; mouse.py = e.touches[0].clientY;
+  }
+}, { passive: true });
+document.addEventListener('touchend', () => mouse.down = false);
+document.addEventListener('touchmove', e => {
+  if (!mouse.down || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - mouse.px, dy = e.touches[0].clientY - mouse.py;
+  orbit.theta -= dx * 0.005;
+  orbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, orbit.phi - dy * 0.005));
+  mouse.px = e.touches[0].clientX; mouse.py = e.touches[0].clientY;
+  autoRotate = false;
+}, { passive: true });
+
+// ─── Gyroscope (Gargantua-style) ──────────────────────────────
+let gyroEnabled = false;
+let gyroAlpha = 0, gyroBeta = 0;
+let gyroTargetTheta = 0, gyroTargetPhi = Math.PI / 2;
+const GYRO_LERP = 0.08;
+
+function toggleGyro() {
+  if (!gyroEnabled) {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().then(state => {
+        if (state === 'granted') enableGyro();
+        else flash('Sensor Denied');
+      }).catch(() => flash('Sensor Error'));
+    } else {
+      enableGyro();
+    }
+  } else {
+    gyroEnabled = false;
+    window.removeEventListener('deviceorientation', onGyro);
+    document.getElementById('btn-gyro').classList.remove('active');
+    flash('Gyro Off');
+  }
+}
+
+function enableGyro() {
+  gyroEnabled = true;
+  autoRotate = false;
+  document.getElementById('btn-rotate').classList.remove('active');
+  document.getElementById('btn-gyro').classList.add('active');
+  window.addEventListener('deviceorientation', onGyro);
+  flash('Gyro On');
+}
+
+function onGyro(e) {
+  if (e.alpha !== null) gyroAlpha = e.alpha;
+  if (e.beta  !== null) gyroBeta  = e.beta;
+}
+
+function updateGyro() {
+  if (!gyroEnabled || mouse.down) return;
+  gyroTargetTheta = (gyroAlpha / 360) * Math.PI * 2;
+  gyroTargetPhi = Math.max(0.3, Math.min(Math.PI - 0.3,
+    ((gyroBeta + 90) / 180) * Math.PI
+  ));
+  orbit.theta += (gyroTargetTheta - orbit.theta) * GYRO_LERP;
+  orbit.phi   += (gyroTargetPhi   - orbit.phi)   * GYRO_LERP;
+}
+
+// ─── Particle System ───────────────────────────────────────────
+const N = 2500;
+const pos = new Float32Array(N * 3);
+const vel = new Float32Array(N * 3);
+const col = new Float32Array(N * 3);
+const sizes = new Float32Array(N);
+const masses = new Float32Array(N);
+
+// Massive nodes (attractors / proto-clusters)
+let attractors = [];
+const NUM_ATTRACTORS = 12;
+
+function initSim() {
+  attractors = [];
+  for (let i = 0; i < NUM_ATTRACTORS; i++) {
+    attractors.push({
+      x: (Math.random() - 0.5) * 500,
+      y: (Math.random() - 0.5) * 500,
+      z: (Math.random() - 0.5) * 500,
+      mass: 80 + Math.random() * 120,
+      vx: 0, vy: 0, vz: 0
+    });
+  }
+
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+    const spread = Math.random() < 0.7 ? 80 : 300;
+    pos[i3]     = near.x + (Math.random() - 0.5) * spread;
+    pos[i3 + 1] = near.y + (Math.random() - 0.5) * spread;
+    pos[i3 + 2] = near.z + (Math.random() - 0.5) * spread;
+
+    vel[i3]     = (Math.random() - 0.5) * 0.3;
+    vel[i3 + 1] = (Math.random() - 0.5) * 0.3;
+    vel[i3 + 2] = (Math.random() - 0.5) * 0.3;
+
+    masses[i] = 0.5 + Math.random() * 2.5;
+
+    const t = Math.random();
+    col[i3]     = 0.4 + t * 0.4;
+    col[i3 + 1] = 0.6 + t * 0.3;
+    col[i3 + 2] = 0.9 + t * 0.1;
+
+    sizes[i] = 1.0 + Math.random() * 2.0;
+  }
+
+  geo.attributes.position.needsUpdate = true;
+  geo.attributes.color.needsUpdate = true;
+  geo.attributes.size.needsUpdate = true;
+  updateFilaments();
+  assignLabels();
+  simTime = 0;
+}
+
+// ─── Particle Geometry ─────────────────────────────────────────
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geo.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+geo.setAttribute('size',     new THREE.BufferAttribute(sizes, 1));
+
+const particleMat = new THREE.ShaderMaterial({
+  vertexColors: true,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: { time: { value: 0 } },
+  vertexShader: `
+    attribute float size;
+    varying vec3 vColor;
+    varying float vDist;
+    void main() {
+      vColor = color;
+      vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+      vDist = length(mvPos.xyz);
+      gl_PointSize = size * (400.0 / -mvPos.z);
+      gl_Position = projectionMatrix * mvPos;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vColor;
+    varying float vDist;
+    void main() {
+      float d = length(gl_PointCoord - 0.5) * 2.0;
+      if (d > 1.0) discard;
+      float alpha = pow(1.0 - d, 2.5) * 0.85;
+      gl_FragColor = vec4(vColor, alpha);
+    }
+  `
+});
+
+const particles = new THREE.Points(geo, particleMat);
+scene.add(particles);
+
+// ─── Filament Lines ────────────────────────────────────────────
+let filamentLines = null;
+let filamentCount = 0;
+
+function updateFilaments() {
+  if (filamentLines) { scene.remove(filamentLines); filamentLines.geometry.dispose(); }
+
+  const pairs = [];
+  const thresh2 = FILAMENT_THRESH * FILAMENT_THRESH;
+
+  const step = Math.max(1, Math.floor(N / 600));
+  for (let i = 0; i < N; i += step) {
+    for (let j = i + step; j < N; j += step) {
+      const dx = pos[i*3] - pos[j*3];
+      const dy = pos[i*3+1] - pos[j*3+1];
+      const dz = pos[i*3+2] - pos[j*3+2];
+      const d2 = dx*dx + dy*dy + dz*dz;
+      if (d2 < thresh2 && d2 > 1) {
+        pairs.push(i, j, Math.sqrt(d2));
+      }
+    }
+  }
+
+  if (pairs.length === 0) return;
+
+  const lineVerts = [];
+  const lineColors = [];
+  filamentCount = 0;
+
+  for (let k = 0; k < pairs.length; k += 3) {
+    const i = pairs[k], j = pairs[k+1], d = pairs[k+2];
+    const alpha = Math.pow(1 - d / FILAMENT_THRESH, 1.8);
+    lineVerts.push(pos[i*3], pos[i*3+1], pos[i*3+2]);
+    lineVerts.push(pos[j*3], pos[j*3+1], pos[j*3+2]);
+    const r = 0.25 + alpha * 0.4;
+    const g = 0.4 + alpha * 0.4;
+    const b = 0.8 + alpha * 0.2;
+    lineColors.push(r, g, b, r, g, b);
+    filamentCount++;
+  }
+
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.Float32BufferAttribute(lineVerts, 3));
+  lg.setAttribute('color',    new THREE.Float32BufferAttribute(lineColors, 3));
+
+  const lm = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.28,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  filamentLines = new THREE.LineSegments(lg, lm);
+  scene.add(filamentLines);
+}
+
+// ─── Attractor Markers ─────────────────────────────────────────
+const attMarkers = new THREE.Points(
+  new THREE.BufferGeometry(),
+  new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      attribute float aSize;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * (500.0 / -mv.z);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        float halo = pow(1.0 - d, 1.5) * 0.6;
+        float core = pow(max(0.0, 1.0 - d * 3.0), 3.0);
+        gl_FragColor = vec4(0.6 + core, 0.8 + core * 0.2, 1.0, halo + core);
+      }
+    `
+  })
+);
+
+function updateAttractorMarkers() {
+  const ap = new Float32Array(attractors.length * 3);
+  const as_ = new Float32Array(attractors.length);
+  attractors.forEach((a, i) => {
+    ap[i*3] = a.x; ap[i*3+1] = a.y; ap[i*3+2] = a.z;
+    as_[i] = Math.sqrt(a.mass) * 0.5;
+  });
+  attMarkers.geometry.setAttribute('position', new THREE.BufferAttribute(ap, 3));
+  attMarkers.geometry.setAttribute('aSize', new THREE.BufferAttribute(as_, 1));
+}
+scene.add(attMarkers);
+
+// ─── Cosmic Boundary Shell (geodesic wireframe) ───────────────
+const SHELL_RADIUS = 350;
+
+// Build icosahedron and subdivide into geodesic triangles
+function buildGeodesicWireframe(radius, subdivisions) {
+  const t = (1 + Math.sqrt(5)) / 2;
+  // Icosahedron vertices
+  const ico = [
+    [-1, t,0],[1, t,0],[-1,-t,0],[1,-t,0],
+    [0,-1, t],[0,1, t],[0,-1,-t],[0,1,-t],
+    [ t,0,-1],[ t,0,1],[-t,0,-1],[-t,0,1]
+  ];
+  // Normalize to unit sphere
+  const verts = ico.map(v => {
+    const l = Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+    return [v[0]/l, v[1]/l, v[2]/l];
+  });
+  // Icosahedron faces (20 triangles)
+  let faces = [
+    [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+    [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+    [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+    [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+  ];
+  // Subdivide
+  const midCache = {};
+  function getMid(a, b) {
+    const key = Math.min(a,b) + ':' + Math.max(a,b);
+    if (midCache[key] !== undefined) return midCache[key];
+    const m = [
+      (verts[a][0]+verts[b][0])/2,
+      (verts[a][1]+verts[b][1])/2,
+      (verts[a][2]+verts[b][2])/2
+    ];
+    const l = Math.sqrt(m[0]*m[0]+m[1]*m[1]+m[2]*m[2]);
+    m[0]/=l; m[1]/=l; m[2]/=l;
+    midCache[key] = verts.length;
+    verts.push(m);
+    return midCache[key];
+  }
+  for (let s = 0; s < subdivisions; s++) {
+    const newFaces = [];
+    for (const [a,b,c] of faces) {
+      const ab = getMid(a,b), bc = getMid(b,c), ca = getMid(c,a);
+      newFaces.push([a,ab,ca],[b,bc,ab],[c,ca,bc],[ab,bc,ca]);
+    }
+    faces = newFaces;
+  }
+  // Build line segments (edges of triangles, deduplicated)
+  const edgeSet = new Set();
+  const lines = [];
+  for (const [a,b,c] of faces) {
+    const edges = [[a,b],[b,c],[c,a]];
+    for (const [e0,e1] of edges) {
+      const key = Math.min(e0,e1) + ':' + Math.max(e0,e1);
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key);
+        lines.push(
+          verts[e0][0]*radius, verts[e0][1]*radius, verts[e0][2]*radius,
+          verts[e1][0]*radius, verts[e1][1]*radius, verts[e1][2]*radius
+        );
+      }
+    }
+  }
+  return new Float32Array(lines);
+}
+
+const shellGeo = new THREE.BufferGeometry();
+shellGeo.setAttribute('position', new THREE.BufferAttribute(buildGeodesicWireframe(SHELL_RADIUS, 3), 3));
+const shellMat = new THREE.LineBasicMaterial({
+  color: 0x4070cc,
+  transparent: true,
+  opacity: 0.12,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+const cosmicShell = new THREE.LineSegments(shellGeo, shellMat);
+scene.add(cosmicShell);
+
+// ─── Background Stars ──────────────────────────────────────────
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(8000 * 3);
+for (let i = 0; i < 8000; i++) {
+  const r = 1200 + Math.random() * 300;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+  starPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+  starPos[i*3+2] = r * Math.cos(phi);
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const starMat = new THREE.PointsMaterial({
+  size: 0.8, color: 0x8ab4e8, transparent: true, opacity: 0.4,
+  blending: THREE.AdditiveBlending, depthWrite: false
+});
+scene.add(new THREE.Points(starGeo, starMat));
+
+// ─── 3D Labels (Quasars / Galaxies / Clusters) ────────────────
+const CELESTIAL_DATA = [
+  { name: 'Laniakea',            type: 'cluster' },
+  { name: 'Virgo Cluster',       type: 'cluster' },
+  { name: 'Coma Cluster',        type: 'cluster' },
+  { name: 'Perseus Cluster',     type: 'cluster' },
+  { name: 'Shapley Supercluster',type: 'cluster' },
+  { name: '3C 273',              type: 'quasar'  },
+  { name: 'TON 618',             type: 'quasar'  },
+  { name: 'APM 08279+5255',      type: 'quasar'  },
+  { name: 'Andromeda (M31)',     type: 'galaxy'  },
+  { name: 'Milky Way',           type: 'galaxy'  },
+  { name: 'Sombrero (M104)',     type: 'galaxy'  },
+  { name: 'Whirlpool (M51)',     type: 'galaxy'  },
+];
+
+let showLabels = false;
+let labelElements = [];
+const labelContainer = document.getElementById('label-container');
+
+function assignLabels() {
+  // Clear old labels
+  labelElements.forEach(el => el.dom.remove());
+  labelElements = [];
+
+  // Shuffle and assign to attractors
+  const shuffled = [...CELESTIAL_DATA].sort(() => Math.random() - 0.5);
+  const count = Math.min(shuffled.length, attractors.length);
+  for (let i = 0; i < count; i++) {
+    const div = document.createElement('div');
+    div.className = 'space-label type-' + shuffled[i].type;
+    div.innerHTML = '<span class="label-dot"></span>' + shuffled[i].name;
+    div.style.opacity = '0';
+    labelContainer.appendChild(div);
+    labelElements.push({ dom: div, attractorIdx: i, data: shuffled[i] });
+  }
+}
+
+function updateLabels() {
+  const w = window.innerWidth, h = window.innerHeight;
+  for (const label of labelElements) {
+    const a = attractors[label.attractorIdx];
+    if (!a) { label.dom.style.opacity = '0'; continue; }
+
+    const v = new THREE.Vector3(a.x, a.y, a.z);
+    v.project(camera);
+
+    // Behind camera check
+    if (v.z > 1) { label.dom.style.opacity = '0'; continue; }
+
+    const sx = (v.x *  0.5 + 0.5) * w;
+    const sy = (v.y * -0.5 + 0.5) * h;
+
+    // Distance-based fade
+    const dist = camera.position.distanceTo(new THREE.Vector3(a.x, a.y, a.z));
+    const fade = Math.max(0, Math.min(1, 1.0 - (dist - 200) / 800));
+
+    label.dom.style.left = sx + 'px';
+    label.dom.style.top  = sy + 'px';
+    label.dom.style.opacity = showLabels ? (fade * 0.9).toFixed(2) : '0';
+  }
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  document.getElementById('btn-labels').classList.toggle('active', showLabels);
+  flash(showLabels ? 'Labels On' : 'Labels Off');
+}
+
+// ─── Timeline: Scene-Based System ─────────────────────────────
+const SCENES = [
+  { name: 'Big Bang',            time: '0 yr',            duration: 8,  camera: 200 },
+  { name: 'Dark Ages',           time: '380,000 yr',      duration: 7,  camera: 400 },
+  { name: 'Structure Formation', time: '1 Billion yr',    duration: 10, camera: 600 },
+  { name: 'Galaxy Epoch',        time: '9 Billion yr',    duration: 8,  camera: 600 },
+  { name: 'Now',                 time: '13.8 Billion yr', duration: 8,  camera: 600 },
+  { name: 'Big Crunch',          time: '∞',               duration: 8,  camera: 200 },
+];
+
+let timelineMode = false;
+let currentSceneIdx = 0;
+let sceneTimer = 0;       // seconds elapsed in current scene
+let transitioning = false; // fade transition in progress
+
+// Build timeline labels
+const tlLabelsEl = document.getElementById('timeline-labels');
+SCENES.forEach((sc, i) => {
+  const div = document.createElement('div');
+  div.className = 'tl-label';
+  div.style.width = (100 / SCENES.length) + '%';
+  div.textContent = sc.name;
+  tlLabelsEl.appendChild(div);
+});
+
+// Click to jump to scene
+document.getElementById('time-bar').addEventListener('click', e => {
+  if (!timelineMode) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  const idx = Math.min(SCENES.length - 1, Math.floor(pct * SCENES.length));
+  jumpToScene(idx);
+});
+
+// ─── Scene Initializers ────────────────────────────────────────
+function initScene_BigBang() {
+  attractors = [];
+  for (let i = 0; i < NUM_ATTRACTORS; i++) {
+    attractors.push({ x: 0, y: 0, z: 0, mass: 100 + Math.random() * 100, vx: 0, vy: 0, vz: 0 });
+  }
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    pos[i3] = pos[i3+1] = pos[i3+2] = 0;
+    // Radial explosion velocity
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    const sp = 3 + Math.random() * 8;
+    vel[i3]   = Math.sin(ph) * Math.cos(th) * sp;
+    vel[i3+1] = Math.cos(ph) * sp;
+    vel[i3+2] = Math.sin(ph) * Math.sin(th) * sp;
+    col[i3] = 1.0; col[i3+1] = 0.95; col[i3+2] = 0.8;
+    sizes[i] = 2.5 + Math.random() * 3.0;
+    masses[i] = 1;
+  }
+  markDirty();
+}
+
+function initScene_DarkAges() {
+  attractors = [];
+  for (let i = 0; i < NUM_ATTRACTORS; i++) {
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    const r = 100 + Math.random() * 200;
+    attractors.push({
+      x: Math.sin(ph)*Math.cos(th)*r, y: Math.cos(ph)*r, z: Math.sin(ph)*Math.sin(th)*r,
+      mass: 50 + Math.random() * 80, vx: 0, vy: 0, vz: 0
+    });
+  }
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    const r = Math.random() * 300;
+    pos[i3]   = Math.sin(ph)*Math.cos(th)*r;
+    pos[i3+1] = Math.cos(ph)*r;
+    pos[i3+2] = Math.sin(ph)*Math.sin(th)*r;
+    vel[i3] = vel[i3+1] = vel[i3+2] = 0;
+    // Dark red / dim
+    col[i3] = 0.3 + Math.random()*0.15;
+    col[i3+1] = 0.15 + Math.random()*0.1;
+    col[i3+2] = 0.1 + Math.random()*0.1;
+    sizes[i] = 1.0 + Math.random() * 1.5;
+    masses[i] = 1;
+  }
+  markDirty();
+}
+
+function initScene_StructureFormation() {
+  // Start spread out, let gravity form filaments
+  attractors = [];
+  for (let i = 0; i < NUM_ATTRACTORS; i++) {
+    attractors.push({
+      x: (Math.random()-0.5)*500, y: (Math.random()-0.5)*500, z: (Math.random()-0.5)*500,
+      mass: 100 + Math.random()*120, vx: 0, vy: 0, vz: 0
+    });
+  }
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    // Loosely distributed, biased toward attractors
+    const near = attractors[Math.floor(Math.random() * NUM_ATTRACTORS)];
+    const spread = 80 + Math.random() * 250;
+    pos[i3]   = near.x + (Math.random()-0.5)*spread;
+    pos[i3+1] = near.y + (Math.random()-0.5)*spread;
+    pos[i3+2] = near.z + (Math.random()-0.5)*spread;
+    vel[i3] = (Math.random()-0.5)*0.5;
+    vel[i3+1] = (Math.random()-0.5)*0.5;
+    vel[i3+2] = (Math.random()-0.5)*0.5;
+    const t = Math.random();
+    col[i3] = 0.3 + t*0.3; col[i3+1] = 0.4 + t*0.3; col[i3+2] = 0.7 + t*0.3;
+    sizes[i] = 1.0 + Math.random()*2.0;
+    masses[i] = 0.5 + Math.random()*2.5;
+  }
+  GRAVITY = 1.5; DARK_ENERGY = 0.1; FILAMENT_THRESH = 70;
+  markDirty();
+}
+
+function initScene_GalaxyEpoch() {
+  initSim();
+  GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
+}
+
+function initScene_Now() {
+  // Just continue current state - it's already the cosmic web
+  GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
+}
+
+function initScene_BigCrunch() {
+  // Use current positions, start collapsing
+  GRAVITY = 2.5; DARK_ENERGY = 0.0; FILAMENT_THRESH = 80;
+  // Give all particles inward velocity
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    const len = Math.sqrt(pos[i3]*pos[i3]+pos[i3+1]*pos[i3+1]+pos[i3+2]*pos[i3+2]) || 1;
+    vel[i3]   = -(pos[i3]  /len) * 2;
+    vel[i3+1] = -(pos[i3+1]/len) * 2;
+    vel[i3+2] = -(pos[i3+2]/len) * 2;
+  }
+  for (const a of attractors) {
+    const len = Math.sqrt(a.x*a.x+a.y*a.y+a.z*a.z) || 1;
+    a.vx = -(a.x/len)*3; a.vy = -(a.y/len)*3; a.vz = -(a.z/len)*3;
+  }
+  markDirty();
+}
+
+const SCENE_INITS = [
+  initScene_BigBang, initScene_DarkAges, initScene_StructureFormation,
+  initScene_GalaxyEpoch, initScene_Now, initScene_BigCrunch
+];
+
+function markDirty() {
+  geo.attributes.position.needsUpdate = true;
+  geo.attributes.color.needsUpdate = true;
+  geo.attributes.size.needsUpdate = true;
+}
+
+// Constrain particles and attractors within cosmic shell
+function enforceShellBoundary() {
+  const r2max = SHELL_RADIUS * SHELL_RADIUS * cosmicShell.scale.x * cosmicShell.scale.x;
+  if (r2max < 1) return; // shell too small (Big Bang start)
+
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    const d2 = pos[i3]*pos[i3] + pos[i3+1]*pos[i3+1] + pos[i3+2]*pos[i3+2];
+    if (d2 > r2max) {
+      const scale = Math.sqrt(r2max / d2) * 0.98;
+      pos[i3] *= scale; pos[i3+1] *= scale; pos[i3+2] *= scale;
+      // Kill outward velocity
+      vel[i3] *= 0.3; vel[i3+1] *= 0.3; vel[i3+2] *= 0.3;
+    }
+  }
+  for (const a of attractors) {
+    const d2 = a.x*a.x + a.y*a.y + a.z*a.z;
+    if (d2 > r2max) {
+      const scale = Math.sqrt(r2max / d2) * 0.98;
+      a.x *= scale; a.y *= scale; a.z *= scale;
+      a.vx *= 0.3; a.vy *= 0.3; a.vz *= 0.3;
+    }
+  }
+}
+
+// ─── Scene Transitions ─────────────────────────────────────────
+function jumpToScene(idx) {
+  if (transitioning || idx === currentSceneIdx) return;
+  transitioning = true;
+  const flashEl = document.getElementById('flash-overlay');
+  flashEl.style.transition = 'opacity 0.4s';
+  flashEl.style.background = '#000';
+  flashEl.style.opacity = '1';
+
+  setTimeout(() => {
+    currentSceneIdx = idx;
+    sceneTimer = 0;
+    SCENE_INITS[idx]();
+    assignLabels();
+    updateFilaments();
+    updateAttractorMarkers();
+    showEpochDisplay(SCENES[idx]);
+    updateTimelineBar();
+
+    flashEl.style.transition = 'opacity 0.8s';
+    flashEl.style.opacity = '0';
+    setTimeout(() => {
+      flashEl.style.background = '#fff';
+      transitioning = false;
+    }, 800);
+  }, 400);
+}
+
+function advanceScene() {
+  if (currentSceneIdx < SCENES.length - 1) {
+    jumpToScene(currentSceneIdx + 1);
+  } else {
+    // Big Crunch complete → white flash → back to free mode
+    const flashEl = document.getElementById('flash-overlay');
+    flashEl.style.background = '#fff';
+    flashEl.style.transition = 'opacity 0.3s';
+    flashEl.style.opacity = '1';
+    setTimeout(() => {
+      flashEl.style.transition = 'opacity 1.5s';
+      flashEl.style.opacity = '0';
+      timelineMode = false;
+      document.getElementById('btn-timeline').classList.remove('active');
+      document.getElementById('epoch-display').style.opacity = '0';
+      GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
+      initSim();
+    }, 800);
+  }
+}
+
+function showEpochDisplay(sc) {
+  const epochEl = document.getElementById('epoch-display');
+  document.getElementById('epoch-name').textContent = sc.name;
+  document.getElementById('epoch-time').textContent = sc.time;
+  epochEl.style.opacity = '1';
+}
+
+function updateTimelineBar() {
+  const totalScenes = SCENES.length;
+  const pct = ((currentSceneIdx + sceneTimer / SCENES[currentSceneIdx].duration) / totalScenes) * 100;
+  document.getElementById('time-progress').style.width = pct + '%';
+}
+
+function toggleTimeline() {
+  timelineMode = !timelineMode;
+  document.getElementById('btn-timeline').classList.toggle('active', timelineMode);
+
+  if (timelineMode) {
+    currentSceneIdx = 0;
+    sceneTimer = 0;
+    SCENE_INITS[0]();
+    assignLabels();
+    showEpochDisplay(SCENES[0]);
+    flash('Timeline Started');
+  } else {
+    document.getElementById('epoch-display').style.opacity = '0';
+    GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
+    flash('Free Mode');
+  }
+}
+
+// ─── Scene-specific physics ────────────────────────────────────
+function bigBangPhysics(dt) {
+  // Continuous expansion: push particles outward, no gravity
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    pos[i3]   += vel[i3]   * dt * 1.5;
+    pos[i3+1] += vel[i3+1] * dt * 1.5;
+    pos[i3+2] += vel[i3+2] * dt * 1.5;
+
+    // Cooling color over time
+    const t = Math.min(1, sceneTimer / SCENES[0].duration);
+    col[i3]   = 1.0 - t * 0.6;
+    col[i3+1] = 0.9 - t * 0.5;
+    col[i3+2] = 0.7 - t * 0.3;
+    sizes[i]  = (3.0 - t * 1.5) + Math.random() * 0.3;
+  }
+  markDirty();
+}
+
+function darkAgesPhysics(dt) {
+  // Very slow drift, gentle random motion
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    pos[i3]   += (Math.random()-0.5) * 0.15;
+    pos[i3+1] += (Math.random()-0.5) * 0.15;
+    pos[i3+2] += (Math.random()-0.5) * 0.15;
+
+    // Slowly brighten from dark red
+    const t = sceneTimer / SCENES[1].duration;
+    col[i3]   = 0.3 + t * 0.1;
+    col[i3+1] = 0.15 + t * 0.2;
+    col[i3+2] = 0.1 + t * 0.4;
+  }
+  markDirty();
+}
+
+function bigCrunchPhysics(dt) {
+  // Lerp everything toward origin — no velocity, no overshoot
+  const t = sceneTimer / SCENES[5].duration;
+  // Shrink factor: starts slow, accelerates (easeInQuad)
+  const shrink = t * t;
+  // Each frame, move a fraction closer to origin (stronger as t grows)
+  const lerpRate = 0.01 + shrink * 0.08;
+
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    pos[i3]   *= (1 - lerpRate);
+    pos[i3+1] *= (1 - lerpRate);
+    pos[i3+2] *= (1 - lerpRate);
+
+    // Heat up to white
+    col[i3]   = 0.35 + t * 0.65;
+    col[i3+1] = 0.55 + t * 0.4;
+    col[i3+2] = 0.9 - t * 0.2;
+    sizes[i]  = 1.0 + t * 3.0;
+  }
+  for (const a of attractors) {
+    a.x *= (1 - lerpRate); a.y *= (1 - lerpRate); a.z *= (1 - lerpRate);
+  }
+  markDirty();
+}
+
+// ─── Physics Step ──────────────────────────────────────────────
+let frameCount = 0;
+const SOFTENING = 25;
+const SOFT2 = SOFTENING * SOFTENING;
+
+function physicsStep(dt) {
+  // Timeline: use scene-specific physics
+  if (timelineMode) {
+    if (currentSceneIdx === 0) { bigBangPhysics(dt); return; }
+    if (currentSceneIdx === 1) { darkAgesPhysics(dt); return; }
+    if (currentSceneIdx === 5) { bigCrunchPhysics(dt); return; }
+    // Scenes 2,3,4: normal N-body physics
+  }
+
+  const g = GRAVITY * dt * SIM_SPEED;
+  const de = DARK_ENERGY * dt * SIM_SPEED * 0.001;
+
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    let fx = 0, fy = 0, fz = 0;
+
+    for (const a of attractors) {
+      const dx = a.x - pos[i3];
+      const dy = a.y - pos[i3+1];
+      const dz = a.z - pos[i3+2];
+      const d2 = dx*dx + dy*dy + dz*dz + SOFT2;
+      const inv_d = 1.0 / Math.sqrt(d2);
+      const inv_d3 = inv_d * inv_d * inv_d;
+      const f = a.mass * inv_d3 * g;
+      fx += dx * f; fy += dy * f; fz += dz * f;
+    }
+
+    fx -= pos[i3]   * de;
+    fy -= pos[i3+1] * de;
+    fz -= pos[i3+2] * de;
+
+    vel[i3]   += fx; vel[i3+1] += fy; vel[i3+2] += fz;
+    vel[i3] *= 0.995; vel[i3+1] *= 0.995; vel[i3+2] *= 0.995;
+    pos[i3]   += vel[i3]   * dt * SIM_SPEED;
+    pos[i3+1] += vel[i3+1] * dt * SIM_SPEED;
+    pos[i3+2] += vel[i3+2] * dt * SIM_SPEED;
+
+    let closest = Infinity;
+    for (const a of attractors) {
+      const dx = a.x - pos[i3], dy = a.y - pos[i3+1], dz = a.z - pos[i3+2];
+      closest = Math.min(closest, dx*dx + dy*dy + dz*dz);
+    }
+    const heat = Math.exp(-closest / 8000);
+    col[i3]   = 0.35 + heat * 0.65;
+    col[i3+1] = 0.55 + heat * 0.15;
+    col[i3+2] = 0.9 - heat * 0.5;
+    sizes[i]  = 1.0 + heat * 4.0;
+  }
+
+  // Attractor mutual gravity
+  for (let i = 0; i < attractors.length; i++) {
+    for (let j = i+1; j < attractors.length; j++) {
+      const a = attractors[i], b = attractors[j];
+      const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+      const d2 = dx*dx + dy*dy + dz*dz + SOFT2 * 10;
+      const inv_d3 = 1.0 / (d2 * Math.sqrt(d2));
+      const f = a.mass * b.mass * inv_d3 * GRAVITY * dt * SIM_SPEED * 0.05;
+      a.vx += dx * f; a.vy += dy * f; a.vz += dz * f;
+      b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f;
+    }
+    attractors[i].x += attractors[i].vx * dt * SIM_SPEED;
+    attractors[i].y += attractors[i].vy * dt * SIM_SPEED;
+    attractors[i].z += attractors[i].vz * dt * SIM_SPEED;
+    attractors[i].vx *= 0.99; attractors[i].vy *= 0.99; attractors[i].vz *= 0.99;
+  }
+
+  markDirty();
+}
+
+// ─── Controls ──────────────────────────────────────────────────
+function bindRange(id, valId, key, fmt) {
+  const r = document.getElementById(id);
+  const v = document.getElementById(valId);
+  r.addEventListener('input', () => {
+    window[key] = parseFloat(r.value);
+    v.textContent = fmt ? fmt(r.value) : r.value;
+  });
+}
+bindRange('r-gravity', 'v-gravity', 'GRAVITY');
+bindRange('r-dark',    'v-dark',    'DARK_ENERGY');
+bindRange('r-thresh',  'v-thresh',  'FILAMENT_THRESH');
+bindRange('r-speed',   'v-speed',   'SIM_SPEED', v => parseFloat(v).toFixed(1) + '\u00d7');
+
+function toggleRotate() {
+  autoRotate = !autoRotate;
+  document.getElementById('btn-rotate').classList.toggle('active', autoRotate);
+}
+function toggleTrails() {
+  showTrails = !showTrails;
+  document.getElementById('btn-trails').classList.toggle('active', showTrails);
+}
+function addMassiveNode() {
+  attractors.push({
+    x: (Math.random() - 0.5) * 400,
+    y: (Math.random() - 0.5) * 400,
+    z: (Math.random() - 0.5) * 400,
+    mass: 150 + Math.random() * 100,
+    vx: 0, vy: 0, vz: 0
+  });
+  flash('Mass Cluster Added');
+}
+function resetSim() {
+  timelineMode = false;
+  document.getElementById('btn-timeline').classList.remove('active');
+  document.getElementById('epoch-display').style.opacity = '0';
+  GRAVITY = 0.8; DARK_ENERGY = 0.3; FILAMENT_THRESH = 60;
+  initSim();
+  flash('Simulation Reset');
+}
+
+function flash(msg) {
+  const el = document.getElementById('mode-indicator');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 1500);
+}
+
+function spawnAttractorAt(mx, my) {
+  const ndc = new THREE.Vector2(
+    (mx / window.innerWidth) * 2 - 1,
+    -(my / window.innerHeight) * 2 + 1
+  );
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(ndc, camera);
+  const point = ray.ray.at(300, new THREE.Vector3());
+  attractors.push({ x: point.x, y: point.y, z: point.z, mass: 120, vx: 0, vy: 0, vz: 0 });
+  flash('Attractor Placed');
+}
+
+// ─── Stats Counter ─────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('s-particles').textContent = N.toLocaleString();
+  document.getElementById('s-filaments').textContent = filamentCount.toLocaleString();
+  document.getElementById('s-time').textContent = timelineMode
+    ? SCENES[currentSceneIdx].name
+    : 'T+' + Math.floor(simTime);
+  document.getElementById('s-voids').textContent = attractors.length;
+  if (timelineMode) updateTimelineBar();
+  else document.getElementById('time-progress').style.width = ((simTime % 100)) + '%';
+}
+
+// ─── Render Loop ───────────────────────────────────────────────
+let last = 0;
+let filamentTimer = 0;
+
+function animate(ts) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((ts - last) / 16, 3);
+  last = ts;
+  simTime += dt * SIM_SPEED * 0.1;
+
+  // Timeline: advance scene timer, auto-advance when done
+  if (timelineMode && !transitioning) {
+    sceneTimer += dt / 60;
+    if (sceneTimer >= SCENES[currentSceneIdx].duration) {
+      advanceScene();
+    }
+  }
+
+  physicsStep(dt * 0.06);
+  enforceShellBoundary();
+  particleMat.uniforms.time.value = ts * 0.001;
+
+  filamentTimer += dt;
+  const skipFilaments = timelineMode && (currentSceneIdx === 0 || currentSceneIdx === 5);
+  if (filamentTimer > 8) {
+    if (!skipFilaments) updateFilaments();
+    else if (filamentLines) { scene.remove(filamentLines); filamentLines.geometry.dispose(); filamentLines = null; filamentCount = 0; }
+    updateAttractorMarkers();
+    updateStats();
+    filamentTimer = 0;
+  }
+
+  // Timeline camera: smoothly track to scene's target distance
+  if (timelineMode) {
+    const targetR = SCENES[currentSceneIdx].camera;
+    orbit.r += (targetR - orbit.r) * 0.03;
+  }
+
+  // Cosmic shell: scale with timeline scenes
+  if (timelineMode) {
+    let targetScale;
+    if (currentSceneIdx === 0) {
+      // Big Bang: expand from 0
+      targetScale = sceneTimer / SCENES[0].duration;
+    } else if (currentSceneIdx === 5) {
+      // Big Crunch: shrink to 0
+      const t = sceneTimer / SCENES[5].duration;
+      targetScale = 1.0 - t * t;
+    } else {
+      targetScale = 1.0;
+    }
+    const s = cosmicShell.scale.x + (targetScale - cosmicShell.scale.x) * 0.05;
+    cosmicShell.scale.set(s, s, s);
+  } else {
+    const s = cosmicShell.scale.x + (1 - cosmicShell.scale.x) * 0.05;
+    cosmicShell.scale.set(s, s, s);
+  }
+
+  // Gyro
+  updateGyro();
+
+  if (autoRotate && !gyroEnabled) {
+    orbit.theta += 0.002;
+  }
+
+  camera.position.x = orbit.r * Math.sin(orbit.phi) * Math.sin(orbit.theta);
+  camera.position.y = orbit.r * Math.cos(orbit.phi);
+  camera.position.z = orbit.r * Math.sin(orbit.phi) * Math.cos(orbit.theta);
+  camera.lookAt(0, 0, 0);
+
+  // Update 3D labels
+  updateLabels();
+
+  renderer.render(scene, camera);
+}
+
+// ─── Init ──────────────────────────────────────────────────────
+initSim();
+updateAttractorMarkers();
+updateStats();
+animate(0);
+
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
